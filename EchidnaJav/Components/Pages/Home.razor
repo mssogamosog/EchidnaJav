@@ -1,0 +1,74 @@
+﻿@page "/"
+@using EchidnaJav.Domain.Entities
+@using EchidnaJav.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+
+<h3>Movies</h3>
+
+@if (movies == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    @foreach (var movie in movies)
+    {
+        <div style="margin-bottom:20px; border-bottom:1px solid #ccc; padding-bottom:10px;">
+            
+            <h4>@movie.Id - @movie.Title</h4>
+
+            <p><b>Original:</b> @movie.OriginalTitle</p>
+            <p><b>Year:</b> @movie.Year</p>
+            <p><b>Premiered:</b> @movie.Premiered?.ToString("yyyy-MM-dd")</p>
+            <p><b>Director:</b> @movie.Director</p>
+            <p><b>Studio:</b> @movie.Studio</p>
+            <p><b>Label:</b> @movie.Label</p>
+            <p><b>Series:</b> @movie.Series</p>
+            <p><b>Runtime:</b> @movie.Runtime min</p>
+            <p><b>Rating:</b> @movie.Rating</p>
+            <p><b>User Rating:</b> @movie.UserRating</p>
+            <p><b>Date Added:</b> @movie.DateAdded?.ToString("yyyy-MM-dd")</p>
+
+            <p><b>Plot:</b> @movie.Plot</p>
+
+            <p>
+                <b>Actresses:</b>
+                @string.Join(", ", movie.MovieActresses.Select(a => a.Actress.Name))
+            </p>
+
+            <p>
+                <b>Genres:</b>
+                @string.Join(", ", movie.MovieGenres.Select(g => g.Genre.Name))
+            </p>
+
+            <p><b>Files:</b></p>
+            <ul>
+                @foreach (var file in movie.Files)
+                {
+                    <li>
+                        @file.FileName
+                        (@file.SizeBytes bytes)
+                        - Last Modified: @file.LastModified
+                    </li>
+                }
+            </ul>
+
+        </div>
+    }
+}
+
+@code {
+    private List<Movie> movies = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        movies = await Db.Movies
+            .Include(m => m.MovieActresses)
+                .ThenInclude(ma => ma.Actress)
+            .Include(m => m.MovieGenres)
+                .ThenInclude(mg => mg.Genre)
+            .Include(m => m.Files)
+            .ToListAsync();
+    }
+}

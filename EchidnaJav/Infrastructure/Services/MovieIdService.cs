@@ -1,0 +1,147 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace EchidnaJav.Infrastructure.Services
+{
+    public interface IMovieIdService
+    {
+        abstract bool MovieIDEquals(string movieID1, string movieID2);
+        abstract int ParseInitialDigits(string s, int errVal = -1);
+        abstract string ParseMovieID(string fileName);
+    }
+
+    public class MovieIdService : IMovieIdService
+    {
+        private class IdRule
+        {
+            public Regex Pattern { get; }
+            public Func<Match, string> Formatter { get; }
+
+            public IdRule(Regex pattern, Func<Match, string> formatter)
+            {
+                Pattern = pattern;
+                Formatter = formatter;
+            }
+        }
+
+        //  Compile Regexes ONCE (Static Readonly) for high performance.
+        private static readonly List<IdRule> HighPriorityRules = new List<IdRule>
+        {
+            // FC2-PPV
+            new IdRule(new Regex(@"FC2[-_ ]?PPV[-_ ]?([0-9]{2,8})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("FC2-PPV-{0}", m.Groups[1].Value)),
+
+            // T28
+            new IdRule(
+                new Regex(@"\bT(2|3)8[-_ ]?([0-9]{3,4})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => $"T{m.Groups[1].Value}8-{m.Groups[2].Value}"
+            )
+        };
+
+        private static readonly List<IdRule> StandardRules = new List<IdRule>
+        {
+            // DMM (ABC00123 -> ABC-123)
+            new IdRule(new Regex(@"([A-Z]{2,7})0{2}([0-9]{2,5})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
+        
+            // Numeric Prefix (804CMP-001 -> CMP-001)
+            new IdRule(new Regex(@"\b[0-9]{1,4}([A-Z]{2,7})[-_ ]([0-9]{2,5})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
+        
+            // Mixed Alphanumeric (ABC12-123A -> ABC12-123)
+            // FIX: Replaced trailing \b with (?=[^0-9A-Za-z]|$) to handle underscores like _4K
+            new IdRule(new Regex(@"\b([A-Z]{2,7}[0-9]{0,2})[-_ ]([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}{2}",
+                    m.Groups[1].Value.ToUpper(),
+                    m.Groups[2].Value,
+                    (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
+        
+            // Basic / Compact (MDVR-129A -> MDVR-129)
+            // FIX: Replaced trailing \b with (?=[^0-9A-Za-z]|$)
+            // This allows matches where the ID is followed by "_" (e.g. SDNM-522_4K)
+            new IdRule(new Regex(@"\b([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}{2}",
+                    m.Groups[1].Value.ToUpper(),
+                    m.Groups[2].Value,
+                    (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
+        
+            // Single Letter (A-123)
+            new IdRule(new Regex(@"\b([A-Z])(?:[-_ ]?)([0-9]{3,5})(?=[^0-9]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value))
+        };
+
+        // 3. Compile the bracket regex once as well
+        private static readonly Regex BracketRegex = new Regex(@"\[(.*?)\]", RegexOptions.Compiled);
+
+        public string ParseMovieID(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName)) return string.Empty;
+
+            string input = Path.GetFileNameWithoutExtension(fileName).Trim();
+
+            // Step 1: Check High Priority Rules (FC2, T28)
+            foreach (var rule in HighPriorityRules)
+            {
+                var match = rule.Pattern.Match(input);
+                if (match.Success) return rule.Formatter(match);
+            }
+
+            // Step 2: Recursive Bracket Check
+            var bracketMatch = BracketRegex.Match(input);
+            if (bracketMatch.Success)
+            {
+                var innerResult = ParseMovieID(bracketMatch.Groups[1].Value);
+                if (!string.IsNullOrEmpty(innerResult)) return innerResult;
+            }
+
+            // Step 3: Check Standard Rules
+            foreach (var rule in StandardRules)
+            {
+                var match = rule.Pattern.Match(input);
+                if (match.Success) return rule.Formatter(match);
+            }
+
+            return string.Empty;
+        }
+        public bool MovieIDEquals(string movieID1, string movieID2)
+        {
+            movieID2 = ParseMovieID(movieID2);
+            if (movieID1 == movieID2)
+                return true;
+            string[] parts1 = movieID1.Split('-');
+            string[] parts2 = movieID2.Split('-');
+            if (parts1.Length != parts2.Length)
+                return false;
+            if (parts1.Length != 2)
+                return false;
+            if (parts1[0] != parts2[0])
+                return false;
+            int num1 = ParseInitialDigits(parts1[1]);
+            int num2 = ParseInitialDigits(parts2[1]);
+            if (num1 == num2 && num1 != -1)
+                return true;
+            return false;
+        }
+        public int ParseInitialDigits(string s, int errVal = -1)
+        {
+            int digits = 0;
+            foreach (char c in s)
+            {
+                if (Char.IsDigit(c))
+                    ++digits;
+                else
+                    break;
+            }
+            if (digits > 0)
+            {
+                string numStr = s.Substring(0, digits);
+                int num = 0;
+                if (Int32.TryParse(numStr, out num))
+                    return num;
+            }
+            return errVal;
+        }
+    }
+}
