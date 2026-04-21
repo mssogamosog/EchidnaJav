@@ -44,10 +44,12 @@ namespace EchidnaJav
             var app = builder.Build();
 
             // 🔥 THIS WAS MISSING (creates tables)
-            using (var scope = app.Services.CreateScope())
+            using(var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                db.Database.EnsureCreated();
+
+                db.Database.EnsureDeleted();   // 🧨 drops DB
+                db.Database.EnsureCreated();   // 🧱 recreates schema
             }
 
             return app;

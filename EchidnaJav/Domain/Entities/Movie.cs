@@ -22,8 +22,8 @@ namespace EchidnaJav.Domain.Entities
         public string? Plot { get; set; }
         public int? Runtime { get; set; }
         public DateTime? DateAdded { get; set; }
-        public List<MovieActress>? MovieActresses { get; set; }
-        public List<MovieGenre>? MovieGenres { get; set; }
+        public List<MovieActress> MovieActresses { get; set; }
+        public List<MovieGenre> MovieGenres { get; set; }
         public List<FileEntry> Files { get; set; }
     }
 }

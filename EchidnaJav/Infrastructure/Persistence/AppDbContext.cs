@@ -25,6 +25,25 @@ namespace EchidnaJav.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<MovieGenre>()
+                .HasOne(mg => mg.Movie)
+                .WithMany(m => m.MovieGenres)
+                .HasForeignKey(mg => mg.MovieId);
+
+            modelBuilder.Entity<MovieGenre>()
+                .HasOne(mg => mg.Genre)
+                .WithMany()
+                .HasForeignKey(mg => mg.GenreId);
+
+            modelBuilder.Entity<MovieActress>()
+                .HasOne(ma => ma.Movie)
+                .WithMany(m => m.MovieActresses)
+                .HasForeignKey(ma => ma.MovieId);
+
+            modelBuilder.Entity<MovieActress>()
+                .HasOne(ma => ma.Actress)
+                .WithMany(a => a.MovieActresses)
+                .HasForeignKey(ma => ma.ActressId);
 
             modelBuilder.Entity<MovieActress>()
                 .HasKey(ma => new { ma.MovieId, ma.ActressId });

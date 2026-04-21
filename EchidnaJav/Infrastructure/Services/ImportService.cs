@@ -2,6 +2,7 @@
 using EchidnaJav.Domain.Entities;
 using EchidnaJav.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using System.Xml.Serialization;
@@ -17,11 +18,16 @@ namespace EchidnaJav.Infrastructure.Services
     {
         private readonly IMovieIdService _movieIdService;
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
+        private readonly ILogger<ImportService> _logger;
 
-        public ImportService(IMovieIdService movieIdService, IDbContextFactory<AppDbContext> dbFactory)
+        public ImportService(
+            IMovieIdService movieIdService,
+            IDbContextFactory<AppDbContext> dbFactory,
+            ILogger<ImportService> logger)
         {
             _movieIdService = movieIdService;
             _dbFactory = dbFactory;
+            _logger = logger;
         }
 
         public async Task ImportFromFolderAsync(string rootPath, CancellationToken ct = default)
@@ -39,21 +45,49 @@ namespace EchidnaJav.Infrastructure.Services
             // 🧵 Consumer (DB writer)
             var consumerTask = Task.Run(async () =>
             {
-                using var db = _dbFactory.CreateDbContext();
-
-                // Cache existing data
-                var genreCache = await db.Genres.ToDictionaryAsync(g => g.Name.ToLower(), ct);
-                var actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
-                var existingMovies = await db.Movies.Select(m => m.Id).ToHashSetAsync(ct);
-
                 await foreach (var movie in reader.ReadAllAsync(ct))
                 {
                     try
                     {
-                        if (existingMovies.Contains(movie.Id))
-                            continue;
+                        using var db = _dbFactory.CreateDbContext();
 
-                        // 🔧 Resolve Genres
+                        // 🔹 Load caches per context
+                        var genreCache = await db.Genres
+                            .ToDictionaryAsync(g => g.Name.ToLower(), ct);
+
+                        var actressCache = await db.Actresses
+                            .ToDictionaryAsync(a => a.Name.ToLower(), ct);
+
+                        var exists = await db.Movies
+                            .AnyAsync(m => m.Id == movie.Id, ct);
+
+                        if (exists)
+                        {
+                            Console.WriteLine($"⏩ Skipped (exists): {movie.Id}");
+                            continue;
+                        }
+
+                        // 🔥 Rebuild clean EF entity (DO NOT reuse incoming object)
+                        var dbMovie = new Movie
+                        {
+                            Id = movie.Id,
+                            Title = movie.Title,
+                            OriginalTitle = movie.OriginalTitle,
+                            Premiered = movie.Premiered,
+                            Year = movie.Year,
+                            Director = movie.Director,
+                            Studio = movie.Studio,
+                            Label = movie.Label,
+                            Plot = movie.Plot,
+                            Runtime = movie.Runtime,
+                            DateAdded = movie.DateAdded,
+
+                            MovieGenres = new List<MovieGenre>(),
+                            MovieActresses = new List<MovieActress>(),
+                            Files = new List<FileEntry>()
+                        };
+
+                        // 🏷️ Genres
                         foreach (var mg in movie.MovieGenres)
                         {
                             var key = Normalize(mg.Genre.Name);
@@ -65,10 +99,14 @@ namespace EchidnaJav.Infrastructure.Services
                                 genreCache[key] = genre;
                             }
 
-                            mg.Genre = genre;
+                            dbMovie.MovieGenres.Add(new MovieGenre
+                            {
+                                Movie = dbMovie,
+                                Genre = genre
+                            });
                         }
 
-                        // 🔧 Resolve Actresses
+                        // 🎭 Actresses
                         foreach (var ma in movie.MovieActresses)
                         {
                             var key = Normalize(ma.Actress.Name);
@@ -79,19 +117,48 @@ namespace EchidnaJav.Infrastructure.Services
                                 db.Actresses.Add(actress);
                                 actressCache[key] = actress;
                             }
-
-                            ma.Actress = actress;
+                            dbMovie.MovieActresses.Add(new MovieActress
+                            {
+                                Movie = dbMovie,
+                                Actress = actress,
+                                Order = ma.Order
+                            });
                         }
 
-                        db.Movies.Add(movie);
+                        // 📁 Files
+                        foreach (var f in movie.Files)
+                        {
+                            dbMovie.Files.Add(new FileEntry
+                            {
+                                Movie = dbMovie,
+                                FilePath = f.FilePath,
+                                FileName = f.FileName,
+                                SizeBytes = f.SizeBytes,
+                                LastModified = f.LastModified,
+                                Hash = f.Hash,
+                                IsScanned = f.IsScanned
+                            });
+                        }
+
+                        // ➕ Add and save
+                        db.Movies.Add(dbMovie);
+
+                        // 🔍 Debug (optional)
+                        /*
+                        foreach (var e in db.ChangeTracker.Entries())
+                        {
+                            Console.WriteLine($"{e.Entity.GetType().Name} - {e.State}");
+                        }
+                        */
+
                         await db.SaveChangesAsync(ct);
 
-                        // 👉 Hook for UI progress
-                        Console.WriteLine($"Imported: {movie.Id}");
+                        _logger.LogInformation($"✅ Imported: {dbMovie.Id}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"❌ Failed {movie.Id}: {ex.Message}");
+                        _logger.LogInformation($"❌ Failed saving movie {movie?.Id}");
+                        _logger.LogError(ex.ToString());
                     }
                 }
             }, ct);
@@ -137,7 +204,7 @@ namespace EchidnaJav.Infrastructure.Services
                     }
                     else
                     {
-                        
+                        // scrape path TODO
                         //movie = new Movie
                         //{
                         //    Id = movieId,
@@ -152,7 +219,7 @@ namespace EchidnaJav.Infrastructure.Services
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Failed processing group: {ex.Message}");
+                    _logger.LogError(ex, "❌ Failed processing group {MovieId}", group.Key);
                 }
             });
 
@@ -186,7 +253,7 @@ namespace EchidnaJav.Infrastructure.Services
         // 📄 Parse NFO (NO DB access)
         private async Task<Movie?> ParseNfoAsync_NoDb(string path)
         {
-            Console.WriteLine($"Exists: {File.Exists(path)} - {path}");
+            _logger.LogInformation("Reading NFO: {Path} (Exists: {Exists})", path, File.Exists(path));
 
             if (!File.Exists(path))
                 return null;
@@ -208,8 +275,7 @@ namespace EchidnaJav.Infrastructure.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Failed to deserialize: {path}");
-                Console.WriteLine(ex.InnerException?.Message ?? ex.Message);
+                _logger.LogError(ex, "❌ Failed to deserialize NFO: {Path}", path);
                 return null;
             }
 
@@ -240,14 +306,16 @@ namespace EchidnaJav.Infrastructure.Services
                 MovieActresses = new()
             };
 
-            // 🎭 Actresses
+            // 🎭 Actresses (DEDUPED)
             if (nfo.Actors != null)
             {
-                foreach (var actor in nfo.Actors)
-                {
-                    if (string.IsNullOrWhiteSpace(actor.Name))
-                        continue;
+                var distinctActors = nfo.Actors
+                    .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                    .GroupBy(a => Normalize(a.Name)) 
+                    .Select(g => g.First());         
 
+                foreach (var actor in distinctActors)
+                {
                     movie.MovieActresses.Add(new MovieActress
                     {
                         Actress = new Actress { Name = actor.Name },
@@ -255,7 +323,6 @@ namespace EchidnaJav.Infrastructure.Services
                     });
                 }
             }
-
             // 🏷️ Genres
             if (nfo.Genres != null)
             {

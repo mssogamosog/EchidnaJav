@@ -50,13 +50,18 @@
     {
         var result = await FolderPicker.Default.PickAsync();
 
-        if (result != null)
+        // Ensure result and its Folder and Path are non-null before calling the import API
+        if (result?.Folder?.Path is string rootPath)
         {
             isLoading = true;
-
-            await ImportService.ImportFromFolderAsync(result.Folder.Path);
-
-            isLoading = false;
+            try
+            {
+                await ImportService.ImportFromFolderAsync(rootPath);
+            }
+            finally
+            {
+                isLoading = false;
+            }
         }
     }
 }
