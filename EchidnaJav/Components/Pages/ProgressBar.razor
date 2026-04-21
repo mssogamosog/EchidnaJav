@@ -1,0 +1,40 @@
+﻿@page "/progress-bar"
+@using EchidnaJav.Infrastructure.Services
+@using EchidnaJav.Domain.DTOs
+@inject IImportService ImportService
+
+
+
+@if (progress.Total > 0)
+{
+    <div class="progress">
+        <div class="progress-bar" style="width:@Percentage%">
+            @Percentage%
+        </div>
+    </div>
+
+    <p>@progress.Processed / @progress.Total</p>
+    <p>Last: @progress.CurrentMovieId (@progress.Status)</p>
+}
+
+<button @onclick="StartImport">Start Import</button>
+
+@code {
+    private ImportProgress progress = new ImportProgress();
+
+    private int Percentage =>
+        progress.Total == 0 ? 0 : (progress.Processed * 100 / progress.Total);
+
+    private async Task StartImport()
+    {
+        var progressHandler = new Progress<ImportProgress>(p =>
+        {
+            progress = p;
+            InvokeAsync(StateHasChanged); // 🔥 update UI
+        });
+
+        await ImportService.ImportFromFolderAsync(
+            "G:\\My Drive\\Library\\JAV",
+            progressHandler);
+    }
+}

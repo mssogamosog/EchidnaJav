@@ -1,8 +1,9 @@
-﻿using EchidnaJav.Infrastructure.Persistence;
+﻿using CommunityToolkit.Maui;
+using EchidnaJav.Infrastructure.Mappers;
+using EchidnaJav.Infrastructure.Persistence;
 using EchidnaJav.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using CommunityToolkit.Maui;
 using SQLitePCL;
 
 namespace EchidnaJav
@@ -35,6 +36,7 @@ namespace EchidnaJav
             // ✅ DI
             builder.Services.AddScoped<IMovieIdService, MovieIdService>();
             builder.Services.AddScoped<IImportService, ImportService>();
+            builder.Services.AddScoped<IMovieDbMapper, MovieDbMapper>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

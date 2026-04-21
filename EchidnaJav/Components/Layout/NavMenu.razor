@@ -1,4 +1,5 @@
 ﻿@using CommunityToolkit.Maui.Storage
+@using EchidnaJav.Domain.DTOs
 @using EchidnaJav.Infrastructure.Services
 @using Microsoft.Maui.Storage
 @inject IImportService ImportService
@@ -11,57 +12,151 @@
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+<!-- 🔥 FLEX CONTAINER (important for bottom pinning) -->
+<div class="nav-scrollable d-flex flex-column"
+     style="height:100%;"
+     onclick="document.querySelector('.navbar-toggler').click()">
+
+    <!-- 🔝 NAV CONTENT -->
+    <div>
+        <nav class="nav flex-column">
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="bi bi-house-door-fill-nav-menu"></span> Home
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="settings">
+                    <span class="bi bi-gear-fill-nav-menu"></span> Settings
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="counter">
+                    <span class="bi bi-plus-square-fill-nav-menu"></span> Counter
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="weather">
+                    <span class="bi bi-list-nested-nav-menu"></span> Weather
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <button class="nav-link btn btn-link text-start w-100"
+                        @onclick="PickFolder"
+                        disabled="@isLoading">
+                    <span class="bi bi-folder2-open"></span>
+                    @(isLoading ? "Importing..." : "Import Folder")
+                </button>
+            </div>
+
+        </nav>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="sidebar-progress p-3 border-top text-light">
+
+            <!-- 📄 STATUS TEXT -->
+            <div class="mb-2 small">
+                <div class="fw-bold">@progress.Status</div>
+
+                <div class="text-truncate" title="@progress.CurrentMovieId">
+                    @progress.CurrentMovieId
+                </div>
+
+                <div class="text-secondary">
+                    @progress.Processed / @progress.Total
+                </div>
+            </div>
+
+            <!-- 📊 BAR + CANCEL -->
+            <div class="d-flex align-items-center gap-2">
+
+                <div class="progress w-100" style="height: 18px;">
+                    <div class="progress-bar bg-success text-dark fw-bold"
+                         role="progressbar"
+                         style="width:@Percentage%">
+                        @Percentage%
+                    </div>
+                </div>
+
+                <button class="btn btn-sm btn-outline-light"
+                        @onclick="CancelImport">
+                    ✖
+                </button>
+
+            </div>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> Settings
-            </NavLink>
-         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <button class="nav-link btn btn-link text-start w-100"
-                    @onclick="PickFolder"
-                    disabled="@isLoading">
-                <span class="bi bi-folder2-open"></span>
-                @(isLoading ? "Importing..." : "Import Folder")
-            </button>
-        </div>
-    </nav>
+    }
 </div>
+
 @code {
+    private CancellationTokenSource? _cts;
+
     private bool isLoading;
+
+    private ImportProgress progress = new()
+    {
+        Total = 0,
+        Processed = 0,
+        Status = "Idle"
+    };
+
+    private int Percentage =>
+        progress.Total == 0
+            ? 0
+            : (int)((progress.Processed * 100.0) / progress.Total);
 
     private async Task PickFolder()
     {
         var result = await FolderPicker.Default.PickAsync();
 
-        // Ensure result and its Folder and Path are non-null before calling the import API
         if (result?.Folder?.Path is string rootPath)
         {
+            _cts = new CancellationTokenSource();
+
             isLoading = true;
+
+            // reset UI state
+            progress = new ImportProgress
+            {
+                Total = 0,
+                Processed = 0,
+                Status = "Starting..."
+            };
+
+            var progressHandler = new Progress<ImportProgress>(p =>
+            {
+                progress = p;
+                InvokeAsync(StateHasChanged); // 🔥 UI refresh
+            });
+
             try
             {
-                await ImportService.ImportFromFolderAsync(rootPath);
+                await ImportService.ImportFromFolderAsync(
+                    rootPath,
+                    progressHandler,
+                    _cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                progress.Status = "Cancelled";
             }
             finally
             {
                 isLoading = false;
+                await InvokeAsync(StateHasChanged);
             }
         }
+    }
+
+    private void CancelImport()
+    {
+        _cts?.Cancel();
     }
 }

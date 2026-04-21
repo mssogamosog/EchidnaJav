@@ -1,5 +1,6 @@
 ﻿using EchidnaJav.Domain.DTOs;
 using EchidnaJav.Domain.Entities;
+using EchidnaJav.Infrastructure.Mappers;
 using EchidnaJav.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,10 @@ namespace EchidnaJav.Infrastructure.Services
 {
     public interface IImportService
     {
-        Task ImportFromFolderAsync(string rootPath, CancellationToken ct = default);
+        Task ImportFromFolderAsync(
+            string rootPath,
+            IProgress<ImportProgress>? progress = null,
+            CancellationToken ct = default);
     }
 
     public class ImportService : IImportService
@@ -19,18 +23,21 @@ namespace EchidnaJav.Infrastructure.Services
         private readonly IMovieIdService _movieIdService;
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
         private readonly ILogger<ImportService> _logger;
+        private readonly IMovieDbMapper _movieDbMapper;
 
         public ImportService(
             IMovieIdService movieIdService,
             IDbContextFactory<AppDbContext> dbFactory,
-            ILogger<ImportService> logger)
+            ILogger<ImportService> logger,
+            IMovieDbMapper movieDbMapper)
         {
             _movieIdService = movieIdService;
             _dbFactory = dbFactory;
             _logger = logger;
+            _movieDbMapper = movieDbMapper;
         }
 
-        public async Task ImportFromFolderAsync(string rootPath, CancellationToken ct = default)
+        public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
         {
             var groups = await GroupFilesByMovieAsync(rootPath);
 
@@ -45,6 +52,8 @@ namespace EchidnaJav.Infrastructure.Services
             // 🧵 Consumer (DB writer)
             var consumerTask = Task.Run(async () =>
             {
+                var total = groups.Count;
+                int processed = 0;
                 await foreach (var movie in reader.ReadAllAsync(ct))
                 {
                     try
@@ -67,83 +76,9 @@ namespace EchidnaJav.Infrastructure.Services
                             continue;
                         }
 
-                        // 🔥 Rebuild clean EF entity (DO NOT reuse incoming object)
-                        var dbMovie = new Movie
-                        {
-                            Id = movie.Id,
-                            Title = movie.Title,
-                            OriginalTitle = movie.OriginalTitle,
-                            Premiered = movie.Premiered,
-                            Year = movie.Year,
-                            Director = movie.Director,
-                            Studio = movie.Studio,
-                            Label = movie.Label,
-                            Plot = movie.Plot,
-                            Runtime = movie.Runtime,
-                            DateAdded = movie.DateAdded,
+                        var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
 
-                            MovieGenres = new List<MovieGenre>(),
-                            MovieActresses = new List<MovieActress>(),
-                            Files = new List<FileEntry>()
-                        };
-
-                        // 🏷️ Genres
-                        foreach (var mg in movie.MovieGenres)
-                        {
-                            var key = Normalize(mg.Genre.Name);
-
-                            if (!genreCache.TryGetValue(key, out var genre))
-                            {
-                                genre = new Genre { Name = mg.Genre.Name };
-                                db.Genres.Add(genre);
-                                genreCache[key] = genre;
-                            }
-
-                            dbMovie.MovieGenres.Add(new MovieGenre
-                            {
-                                Movie = dbMovie,
-                                Genre = genre
-                            });
-                        }
-
-                        // 🎭 Actresses
-                        foreach (var ma in movie.MovieActresses)
-                        {
-                            var key = Normalize(ma.Actress.Name);
-
-                            if (!actressCache.TryGetValue(key, out var actress))
-                            {
-                                actress = new Actress { Name = ma.Actress.Name };
-                                db.Actresses.Add(actress);
-                                actressCache[key] = actress;
-                            }
-                            dbMovie.MovieActresses.Add(new MovieActress
-                            {
-                                Movie = dbMovie,
-                                Actress = actress,
-                                Order = ma.Order
-                            });
-                        }
-
-                        // 📁 Files
-                        foreach (var f in movie.Files)
-                        {
-                            dbMovie.Files.Add(new FileEntry
-                            {
-                                Movie = dbMovie,
-                                FilePath = f.FilePath,
-                                FileName = f.FileName,
-                                SizeBytes = f.SizeBytes,
-                                LastModified = f.LastModified,
-                                Hash = f.Hash,
-                                IsScanned = f.IsScanned
-                            });
-                        }
-
-                        // ➕ Add and save
                         db.Movies.Add(dbMovie);
-
-                        // 🔍 Debug (optional)
                         /*
                         foreach (var e in db.ChangeTracker.Entries())
                         {
@@ -153,11 +88,34 @@ namespace EchidnaJav.Infrastructure.Services
 
                         await db.SaveChangesAsync(ct);
 
-                        _logger.LogInformation($"✅ Imported: {dbMovie.Id}");
+                        processed++;
+
+                        progress?.Report(new ImportProgress
+                        {
+                            Processed = processed,
+                            Total = total,
+                            CurrentMovieId = dbMovie.Id,
+                            Status = "Imported"
+                        });
+
+                        _logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger.LogInformation($"⏹️ Cancelled: {movie?.Id}");
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogInformation($"❌ Failed saving movie {movie?.Id}");
+                        processed++;
+
+                        progress?.Report(new ImportProgress
+                        {
+                            Processed = processed,
+                            Total = total,
+                            CurrentMovieId = movie?.Id,
+                            Status = "Failed"
+                        });
+                        _logger.LogInformation($"❌ Failed saving movie {movie?.Id} {movie?.Files?.FirstOrDefault()?.FilePath}");
                         _logger.LogError(ex.ToString());
                     }
                 }
@@ -216,6 +174,10 @@ namespace EchidnaJav.Infrastructure.Services
                     }
 
                     
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("⏹️ Import cancelled during processing");
                 }
                 catch (Exception ex)
                 {
