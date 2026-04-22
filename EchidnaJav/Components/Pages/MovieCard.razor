@@ -1,0 +1,54 @@
+﻿@using EchidnaJav.Domain.Entities
+@using EchidnaJav.Infrastructure.Services
+@inject IImageService ImageService
+
+<div class="movie-card">
+
+    <div class="cover-container @(UseFullImage ? "wide" : "poster")">
+        @if (imageCache.TryGetValue(Movie.Id, out var img))
+        {
+            <img src="@img"
+                 class="cover"
+                 loading="lazy" />
+        }
+        else
+        {
+            <div class="cover placeholder"></div>
+        }
+        
+    </div>
+    <div class="info">
+        <div class="id">@Movie.Id</div>
+        <div class="title">@Movie.Title</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Movie Movie { get; set; }
+    [Parameter] public bool UseFullImage { get; set; }
+
+    
+    private Dictionary<string, string> imageCache = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        imageCache.Clear();
+
+        var imagePath = ImageService.GetBestImage(Movie);
+
+        if (imagePath != null)
+        {
+            var type = UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
+
+            var img = await ImageService.GetImageAsync(imagePath, type);
+
+            if (!string.IsNullOrEmpty(img))
+            {
+                imageCache[Movie.Id] = img;
+            }
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+    
+}

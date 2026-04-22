@@ -6,69 +6,59 @@
 
 <h3>Movies</h3>
 
+<div class="d-flex align-items-center gap-3 mb-3">
+
+    <!-- Toggle view -->
+    <button class="btn btn-sm btn-secondary"
+            @onclick="ToggleView">
+        View: @(useFullImage ? "Full" : "Cover")
+    </button>
+
+    <!-- Size slider -->
+    <input type="range"
+           min="120"
+           max="400"
+           step="10"
+           @bind="cardWidth" />
+
+    <span>@cardWidth px</span>
+
+</div>
+
 @if (movies == null)
 {
     <p>Loading...</p>
 }
 else
 {
-    @foreach (var movie in movies)
-    {
-        <div style="margin-bottom:20px; border-bottom:1px solid #ccc; padding-bottom:10px;">
-            
-            <h4>@movie.Id - @movie.Title</h4>
+    <div class="movie-grid"
+         style="--card-width:@($"{cardWidth}px")">
 
-            <p><b>Original:</b> @movie.OriginalTitle</p>
-            <p><b>Year:</b> @movie.Year</p>
-            <p><b>Premiered:</b> @movie.Premiered?.ToString("yyyy-MM-dd")</p>
-            <p><b>Director:</b> @movie.Director</p>
-            <p><b>Studio:</b> @movie.Studio</p>
-            <p><b>Label:</b> @movie.Label</p>
-            <p><b>Series:</b> @movie.Series</p>
-            <p><b>Runtime:</b> @movie.Runtime min</p>
-            <p><b>Rating:</b> @movie.Rating</p>
-            <p><b>User Rating:</b> @movie.UserRating</p>
-            <p><b>Date Added:</b> @movie.DateAdded?.ToString("yyyy-MM-dd")</p>
+        @foreach (var movie in movies)
+        {
+            <MovieCard Movie="movie" UseFullImage="useFullImage" />
+        }
 
-            <p><b>Plot:</b> @movie.Plot</p>
-
-            <p>
-                <b>Actresses:</b>
-                @string.Join(", ", movie.MovieActresses.Select(a => a.Actress.Name))
-            </p>
-
-            <p>
-                <b>Genres:</b>
-                @string.Join(", ", movie.MovieGenres.Select(g => g.Genre.Name))
-            </p>
-
-            <p><b>Files:</b></p>
-            <ul>
-                @foreach (var file in movie.Files)
-                {
-                    <li>
-                        @file.FileName
-                        (@file.SizeBytes bytes)
-                        - Last Modified: @file.LastModified
-                    </li>
-                }
-            </ul>
-
-        </div>
-    }
+    </div>
 }
 
 @code {
-    private List<Movie> movies = new();
+    private List<Movie> movies;
+    private bool useFullImage = false;
+
+    // default sizes depending on mode
+    private int cardWidth = 180;
 
     protected override async Task OnInitializedAsync()
     {
         movies = await Db.Movies
-            .Include(m => m.MovieActresses)
-                .ThenInclude(ma => ma.Actress)
-            .Include(m => m.MovieGenres)
-                .ThenInclude(mg => mg.Genre)
             .Include(m => m.Files)
             .ToListAsync();
+    }
+
+    private void ToggleView()
+    {
+        useFullImage = !useFullImage;
+        cardWidth = useFullImage ? 260 : 160;
     }
 }

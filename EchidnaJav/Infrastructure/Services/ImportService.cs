@@ -56,6 +56,7 @@ namespace EchidnaJav.Infrastructure.Services
                 int processed = 0;
                 await foreach (var movie in reader.ReadAllAsync(ct))
                 {
+                    ct.ThrowIfCancellationRequested();
                     try
                     {
                         using var db = _dbFactory.CreateDbContext();
@@ -85,7 +86,7 @@ namespace EchidnaJav.Infrastructure.Services
                             Console.WriteLine($"{e.Entity.GetType().Name} - {e.State}");
                         }
                         */
-
+                        ct.ThrowIfCancellationRequested();
                         await db.SaveChangesAsync(ct);
 
                         processed++;
@@ -129,6 +130,7 @@ namespace EchidnaJav.Infrastructure.Services
             },
             async (group, token) =>
             {
+                token.ThrowIfCancellationRequested();
                 try
                 {
                     var movieId = group.Key;
@@ -157,7 +159,8 @@ namespace EchidnaJav.Infrastructure.Services
                                 IsScanned = true
                             };
                         }).ToList();
-
+                        if (token.IsCancellationRequested)
+                            return;
                         await writer.WriteAsync(movie, token);
                     }
                     else
@@ -177,6 +180,7 @@ namespace EchidnaJav.Infrastructure.Services
                 }
                 catch (OperationCanceledException)
                 {
+                    writer.TryComplete();
                     _logger.LogInformation("⏹️ Import cancelled during processing");
                 }
                 catch (Exception ex)

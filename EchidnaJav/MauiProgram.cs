@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Maui;
+using EchidnaJav.Domain.DTOs;
 using EchidnaJav.Infrastructure.Mappers;
 using EchidnaJav.Infrastructure.Persistence;
 using EchidnaJav.Infrastructure.Services;
@@ -37,6 +38,9 @@ namespace EchidnaJav
             builder.Services.AddScoped<IMovieIdService, MovieIdService>();
             builder.Services.AddScoped<IImportService, ImportService>();
             builder.Services.AddScoped<IMovieDbMapper, MovieDbMapper>();
+            builder.Services.AddScoped<IImageService, ImageService>();
+            builder.Services.AddSingleton<ImportState>();
+            
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -45,12 +49,11 @@ namespace EchidnaJav
 
             var app = builder.Build();
 
-            // 🔥 THIS WAS MISSING (creates tables)
             using(var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                db.Database.EnsureDeleted();   // 🧨 drops DB
+                //db.Database.EnsureDeleted();   // 🧨 drops DB
                 db.Database.EnsureCreated();   // 🧱 recreates schema
             }
 
