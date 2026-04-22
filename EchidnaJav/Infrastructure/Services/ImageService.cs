@@ -26,7 +26,7 @@ namespace EchidnaJav.Infrastructure.Services
     {
 
         private readonly ILogger<ImportService> _logger;
-        private const int ThumbnailHeight = 250;
+        private const int ThumbnailHeight = 420;
         private const int CoverWidth = 300;
         private const int CoverHeight = 420;
         private const int FullMaxWidth = 800; // optional resize cap
@@ -89,7 +89,7 @@ namespace EchidnaJav.Infrastructure.Services
             var bytes = await File.ReadAllBytesAsync(cachePath);
             var base64 = Convert.ToBase64String(bytes);
             var imgSource = $"data:image/jpeg;base64,{base64}";
-            _logger.LogInformation("Cached image: {Original}", imgSource);
+            //_logger.LogInformation("Cached image: {Original}", imgSource);
             return imgSource;
         }
 

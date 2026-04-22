@@ -3,7 +3,6 @@
 @inject IImageService ImageService
 
 <div class="movie-card">
-
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
         @if (imageCache.TryGetValue(Movie.Id, out var img))
         {
@@ -15,11 +14,11 @@
         {
             <div class="cover placeholder"></div>
         }
-        
     </div>
     <div class="info">
-        <div class="id">@Movie.Id</div>
-        <div class="title">@Movie.Title</div>
+        <div class="header">
+            <div class="title id">[@Movie.Id] @Movie.Title</div>
+        </div>
     </div>
 </div>
 
