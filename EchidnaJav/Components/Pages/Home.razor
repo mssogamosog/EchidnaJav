@@ -1,27 +1,11 @@
 ﻿@page "/"
 @using EchidnaJav.Domain.Entities
+@using EchidnaJav.Domain.States
 @using EchidnaJav.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject AppDbContext Db
-
-<h3>Movies</h3>
-
-<div class="d-flex align-items-center gap-3 mb-3">
-
-    <!-- Toggle view -->
-    <button class="btn btn-sm btn-secondary"
-            @onclick="ToggleView">
-        View: @(useFullImage ? "Full" : "Cover")
-    </button>
-
-    <!-- Size slider -->
-    <input type="range"
-           min="100"
-           max="400"
-           step="10"
-           @bind="baseWidth" />
-
-    </div>
+@inject UIState UI
+@implements IDisposable
 
 @if (movies == null)
 {
@@ -34,7 +18,7 @@ else
 
         @foreach (var movie in movies)
         {
-            <MovieCard Movie="movie" UseFullImage="useFullImage" />
+            <MovieCard Movie="movie" UseFullImage="UI.UseWideView" />
         }
 
     </div>
@@ -42,12 +26,10 @@ else
 
 @code {
     private List<Movie> movies;
-    private bool useFullImage = false; 
-    private int baseWidth = 180;
 
-    private int EffectiveWidth => useFullImage
-        ? (int)(baseWidth * 2.1)   // 🔥 make wide mode wider
-        : baseWidth;
+    private int EffectiveWidth => UI.UseWideView
+    ? (int)(UI.CardWidth * 2.1)
+    : UI.CardWidth;
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,8 +38,18 @@ else
             .ToListAsync();
     }
 
-    private void ToggleView()
+    protected override void OnInitialized()
     {
-        useFullImage = !useFullImage;
+        UI.OnChange += Refresh;
+    }
+
+    void Refresh()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        UI.OnChange -= Refresh;
     }
 }

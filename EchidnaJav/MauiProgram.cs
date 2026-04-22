@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Maui;
-using EchidnaJav.Domain.DTOs;
+using EchidnaJav.Domain.States;
 using EchidnaJav.Infrastructure.Mappers;
 using EchidnaJav.Infrastructure.Persistence;
 using EchidnaJav.Infrastructure.Services;
@@ -40,7 +40,8 @@ namespace EchidnaJav
             builder.Services.AddScoped<IMovieDbMapper, MovieDbMapper>();
             builder.Services.AddScoped<IImageService, ImageService>();
             builder.Services.AddSingleton<ImportState>();
-            
+            builder.Services.AddSingleton<UIState>();
+
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

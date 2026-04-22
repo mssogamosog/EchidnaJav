@@ -1,17 +1,149 @@
-﻿@inherits LayoutComponentBase
+﻿@using EchidnaJav.Domain.States
+@inherits LayoutComponentBase
+@inject UIState UI
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
-<div class="page">
-    <div class="sidebar">
+<div class="app-shell">
+    @if (menuOpen && isMobile)
+    {
+        <div class="menu-backdrop"
+             @onclick="CloseMenu"></div>
+    }
+
+    <aside class="sidebar @(menuOpen ? "open" : "closed")">
         <NavMenu />
-    </div>
+    </aside>
+    <div class="main-shell">
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <header class="header-bar">
+
+            <button class="menu-btn" @onclick="ToggleMenu">☰</button>
+
+            <div class="logo">
+                EchidnaJav
+            </div>
+            <div class="page-title">
+                Home
+            </div>
+            <input class="search-box"
+                   placeholder="Search movies..." />            
+
+        </header>
+
+        <div class="toolbar">
+
+            <div class="filters-left">
+                <button>Genre</button>
+                <button>Actress</button>
+                <button>Sort</button>
+            </div>
+
+            <div class="view-buttons">
+
+                <button class="@(UI.UseWideView ? "" : "active")"
+                        @onclick="UI.SetPosterView">
+                    ▦
+                </button>
+
+                <button class="@(UI.UseWideView ? "active" : "")"
+                        @onclick="UI.SetWideView">
+                    ▭
+                </button>
+
+            </div>
+
         </div>
 
-        <article class="content">
+        <main class="content-area">
             @Body
-        </article>
-    </main>
+        </main>
+
+        <div class="size-slider-shell">
+            <div class="size-slider">
+
+                <input type="range"
+                       min="120"
+                       max="320"
+                       step="10"
+                       value="@UI.CardWidth"
+                       @oninput="LiveResize"
+                       @onchange="SaveResize" />
+
+            </div>
+        </div>
+
+    </div>
+
 </div>
+
+@code {
+
+    bool menuOpen = true;
+    bool isMobile = false;
+    void ToggleMenu()
+    {
+        menuOpen = !menuOpen;
+    }
+
+    void CloseMenu()
+    {
+        menuOpen = false;
+    }
+
+    async Task LiveResize(ChangeEventArgs e)
+    {
+        var value = e.Value!.ToString();
+
+        await JS.InvokeVoidAsync(
+            "setCardWidth",
+            $"{value}px");
+    }
+
+    void SaveResize(ChangeEventArgs e)
+    {
+        UI.SetWidth(int.Parse(e.Value!.ToString()!));
+    }
+    private DotNetObjectReference<MainLayout>? objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+
+            await JS.InvokeVoidAsync("registerResizeHandler", objRef);
+
+            var width = await JS.InvokeAsync<int>("getWindowWidth");
+
+            isMobile = width < 900;
+            menuOpen = !isMobile;
+
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public void OnBrowserResize(int width)
+    {
+        bool nowMobile = width < 900;
+
+        // only react when breakpoint changes
+        if (nowMobile != isMobile)
+        {
+            isMobile = nowMobile;
+
+            if (isMobile)
+                menuOpen = false;   // entering mobile closes
+            else
+                menuOpen = true;    // entering desktop opens
+
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        objRef?.Dispose();
+    }
+}
