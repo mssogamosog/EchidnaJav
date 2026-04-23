@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace EchidnaJav.Domain.DTOs
+namespace EchidnaJav.Core.Domain.DTOs
 {
     public class ImportProgress
     {

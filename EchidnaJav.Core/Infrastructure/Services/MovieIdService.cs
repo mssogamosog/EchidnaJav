@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace EchidnaJav.Infrastructure.Services
+namespace EchidnaJav.Core.Infrastructure.Services
 {
     public interface IMovieIdService
     {
@@ -42,6 +42,12 @@ namespace EchidnaJav.Infrastructure.Services
 
         private static readonly List<IdRule> StandardRules = new List<IdRule>
         {
+            // 13dsvr01744pl → DSVR-1744
+            new IdRule(
+                new Regex(@"\b\d{1,4}([A-Z]{2,7})0*([0-9]{3,5})[A-Z]{0,3}\b",
+                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => $"{m.Groups[1].Value.ToUpper()}-{int.Parse(m.Groups[2].Value)}"
+            ),
             // DMM (ABC00123 -> ABC-123)
             new IdRule(new Regex(@"([A-Z]{2,7})0{2}([0-9]{2,5})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),

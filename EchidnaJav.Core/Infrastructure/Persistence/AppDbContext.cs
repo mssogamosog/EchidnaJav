@@ -1,10 +1,10 @@
-﻿using EchidnaJav.Domain.Entities;
+﻿using EchidnaJav.Core.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace EchidnaJav.Infrastructure.Persistence
+namespace EchidnaJav.Core.Infrastructure.Persistence
 {
     using Microsoft.EntityFrameworkCore;
 

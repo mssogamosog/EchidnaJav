@@ -1,21 +1,14 @@
-﻿@using EchidnaJav.Domain.States
+﻿@using EchidnaJav.Core.Domain.States
 @inherits LayoutComponentBase
 @inject UIState UI
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
 <div class="app-shell">
-    @if (menuOpen && isMobile)
-    {
-        <div class="menu-backdrop"
-             @onclick="CloseMenu"></div>
-    }
 
-    <aside class="sidebar @(menuOpen ? "open" : "closed")">
-        <NavMenu />
-    </aside>
     <div class="main-shell">
 
+        <!-- TOP HEADER (always full width) -->
         <header class="header-bar">
 
             <button class="menu-btn" @onclick="ToggleMenu">☰</button>
@@ -23,55 +16,82 @@
             <div class="logo">
                 EchidnaJav
             </div>
+
             <div class="page-title">
                 Home
             </div>
+
             <input class="search-box"
-                   placeholder="Search movies..." />            
+                   placeholder="Search movies..." />
 
         </header>
 
-        <div class="toolbar">
+        <!-- mobile backdrop -->
+        @if (menuOpen && isMobile)
+        {
+            <div class="menu-backdrop"
+                 @onclick="CloseMenu"></div>
+        }
 
-            <div class="filters-left">
-                <button>Genre</button>
-                <button>Actress</button>
-                <button>Sort</button>
-            </div>
+        <!-- BODY AREA UNDER HEADER -->
+        <div class="body-shell">
 
-            <div class="view-buttons">
+            <!-- SIDEBAR -->
+            <aside class="sidebar @(menuOpen ? "open" : "closed")">
+                <NavMenu />
+            </aside>
 
-                <button class="@(UI.UseWideView ? "" : "active")"
-                        @onclick="UI.SetPosterView">
-                    ▦
-                </button>
+            <!-- RIGHT CONTENT -->
+            <div class="content-shell">
 
-                <button class="@(UI.UseWideView ? "active" : "")"
-                        @onclick="UI.SetWideView">
-                    ▭
-                </button>
+                <!-- TOOLBAR -->
+                <div class="toolbar">
 
+                    <div class="filters-left">
+                        <button>Genre</button>
+                        <button>Actress</button>
+                        <button>Sort</button>
+                    </div>
+
+                    <div class="view-buttons">
+
+                        <button class="@(UI.UseWideView ? "" : "active")"
+                                @onclick="UI.SetPosterView">
+                            ▦
+                        </button>
+
+                        <button class="@(UI.UseWideView ? "active" : "")"
+                                @onclick="UI.SetWideView">
+                            ▭
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <!-- PAGE CONTENT -->
+                <main class="content-area">
+                    @Body
+                </main>
+                <!-- FLOATING SLIDER -->
+                <div class="size-slider-shell">
+                    <div class="size-slider">
+
+                        <input type="range"
+                               min="120"
+                               max="320"
+                               step="10"
+                               value="@UI.CardWidth"
+                               @oninput="LiveResize"
+                               @onchange="SaveResize" />
+
+                    </div>
+                </div>
             </div>
 
         </div>
 
-        <main class="content-area">
-            @Body
-        </main>
-
-        <div class="size-slider-shell">
-            <div class="size-slider">
-
-                <input type="range"
-                       min="120"
-                       max="320"
-                       step="10"
-                       value="@UI.CardWidth"
-                       @oninput="LiveResize"
-                       @onchange="SaveResize" />
-
-            </div>
-        </div>
+        
 
     </div>
 

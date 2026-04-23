@@ -1,8 +1,8 @@
 ﻿using CommunityToolkit.Maui;
-using EchidnaJav.Domain.States;
-using EchidnaJav.Infrastructure.Mappers;
-using EchidnaJav.Infrastructure.Persistence;
-using EchidnaJav.Infrastructure.Services;
+using EchidnaJav.Core.Domain.States;
+using EchidnaJav.Core.Infrastructure.Mappers;
+using EchidnaJav.Core.Infrastructure.Persistence;
+using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SQLitePCL;
@@ -41,7 +41,7 @@ namespace EchidnaJav
             builder.Services.AddScoped<IImageService, ImageService>();
             builder.Services.AddSingleton<ImportState>();
             builder.Services.AddSingleton<UIState>();
-
+            builder.Services.AddSingleton<IAppPaths, AppPaths>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -49,6 +49,8 @@ namespace EchidnaJav
 #endif
 
             var app = builder.Build();
+
+
 
             using(var scope = app.Services.CreateScope())
             {

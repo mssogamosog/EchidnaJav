@@ -1,4 +1,4 @@
-﻿using EchidnaJav.Domain.Entities;
+﻿using EchidnaJav.Core.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
@@ -8,12 +8,16 @@ using Image = SixLabors.ImageSharp.Image;
 using ResizeMode = SixLabors.ImageSharp.Processing.ResizeMode;
 using Size = SixLabors.ImageSharp.Size;
 
-namespace EchidnaJav.Infrastructure.Services
+namespace EchidnaJav.Core.Infrastructure.Services
 {
     public interface IImageService
     {
         string? GetBestImage(Movie movie);
         Task<string?> GetImageAsync(string originalPath, ImageType type);
+    }
+    public interface IAppPaths
+    {
+        string AppDataDirectory { get; }
     }
     public enum ImageType
     {
@@ -25,7 +29,8 @@ namespace EchidnaJav.Infrastructure.Services
     public class ImageService : IImageService
     {
 
-        private readonly ILogger<ImportService> _logger;
+        private readonly ILogger<ImageService> _logger;
+        private readonly IAppPaths _appPaths;
         private const int ThumbnailHeight = 420;
         private const int CoverWidth = 300;
         private const int CoverHeight = 420;
@@ -38,13 +43,15 @@ namespace EchidnaJav.Infrastructure.Services
             ".png",
             ".webp"
         };
-        public ImageService(ILogger<ImportService> logger)
+        public ImageService(ILogger<ImageService> logger, IAppPaths appPaths)
         {
             _logger = logger;
-            _cacheFolder = Path.Combine(FileSystem.AppDataDirectory, "image-cache");
+            _appPaths = appPaths;
+            _cacheFolder = Path.Combine(_appPaths.AppDataDirectory, "image-cache");
 
             if (!Directory.Exists(_cacheFolder))
                 Directory.CreateDirectory(_cacheFolder);
+           
         }
 
         public async Task<string?> GetImageAsync(string originalPath, ImageType type)
@@ -104,12 +111,18 @@ namespace EchidnaJav.Infrastructure.Services
 
         private void CropRightSide(Image image)
         {
-            const double coverRatio = 0.45;
+            double targetRatio = (double)CoverWidth / CoverHeight; // 300 / 420 = 0.714
 
-            int cropWidth = (int)(image.Width * coverRatio);
+            int cropWidth = (int)(image.Height * targetRatio);
 
-            image.Mutate(x => x.Crop(new Rectangle(
-                image.Width - cropWidth, // right side
+            // Prevent overflow
+            if (cropWidth > image.Width)
+                cropWidth = image.Width;
+
+            int x = image.Width - cropWidth;
+
+            image.Mutate(ctx => ctx.Crop(new Rectangle(
+                x,
                 0,
                 cropWidth,
                 image.Height
@@ -118,10 +131,11 @@ namespace EchidnaJav.Infrastructure.Services
         public string? GetBestImage(Movie movie)
         {
             return movie.Files
-                .Where(f => ImageExtensions.Contains(Path.GetExtension(f.FileName)))
+                .Where(f =>
+                    ImageExtensions.Contains(Path.GetExtension(f.FileName)) &&
+                    !f.FileName.Contains("thumb", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(f => f.FileName.Contains("cover", StringComparison.OrdinalIgnoreCase))
                 .ThenByDescending(f => f.FileName.Contains("poster", StringComparison.OrdinalIgnoreCase))
-                .ThenByDescending(f => f.FileName.Contains("thumb", StringComparison.OrdinalIgnoreCase))
                 .ThenBy(f => f.SizeBytes)
                 .Select(f => f.FilePath)
                 .FirstOrDefault();

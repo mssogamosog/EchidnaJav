@@ -1,9 +1,9 @@
-﻿using EchidnaJav.Domain.DTOs;
+﻿using EchidnaJav.Core.Domain.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace EchidnaJav.Domain.States
+namespace EchidnaJav.Core.Domain.States
 {
     public class ImportState
     {

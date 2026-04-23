@@ -1,0 +1,165 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- =======================================================
+       PURPLE ELEGANT APP THEME (MAUI VALID VERSION)
+       Light + Dark using AppThemeBinding
+    ======================================================== -->
+
+    <!-- LIGHT COLORS -->
+    <Color x:Key="LightPageBackground">#F8F6FB</Color>
+    <Color x:Key="LightSurface">#FFFFFF</Color>
+    <Color x:Key="LightSurface2">#F4F0F8</Color>
+    <Color x:Key="LightBorder">#DDD8E8</Color>
+
+    <Color x:Key="LightText">#39283F</Color>
+    <Color x:Key="LightTextSecondary">#5B4759</Color>
+    <Color x:Key="LightTextMuted">#7A6A7E</Color>
+
+    <!-- DARK COLORS -->
+    <Color x:Key="DarkPageBackground">#39283F</Color>
+    <Color x:Key="DarkSurface">#4A3651</Color>
+    <Color x:Key="DarkSurface2">#5B4759</Color>
+    <Color x:Key="DarkBorder">#6A5A72</Color>
+
+    <Color x:Key="DarkText">#F1EEF6</Color>
+    <Color x:Key="DarkTextSecondary">#DDD8E8</Color>
+    <Color x:Key="DarkTextMuted">#B7A8C6</Color>
+
+    <!-- BRAND -->
+    <Color x:Key="PrimaryColor">#6E5A78</Color>
+    <Color x:Key="PrimaryDarkMode">#B7A8C6</Color>
+    <Color x:Key="WhiteColor">#FFFFFF</Color>
+
+    <!-- STATUS -->
+    <Color x:Key="SuccessColor">#8AD5C2</Color>
+    <Color x:Key="DangerColor">#C88FA0</Color>
+    <Color x:Key="WarningColor">#D6C18B</Color>
+    <Color x:Key="InfoColor">#BFD6F6</Color>
+
+    <!-- =======================================================
+       PAGE
+    ======================================================== -->
+    <Style TargetType="ContentPage">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightPageBackground},
+                Dark={StaticResource DarkPageBackground}}" />
+    </Style>
+
+    <!-- =======================================================
+       LABELS
+    ======================================================== -->
+    <Style TargetType="Label">
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightText},
+                Dark={StaticResource DarkText}}" />
+        <Setter Property="FontSize"
+                Value="14" />
+    </Style>
+
+    <!-- =======================================================
+       BUTTONS
+    ======================================================== -->
+    <Style TargetType="Button">
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding
+                Light={StaticResource PrimaryColor},
+                Dark={StaticResource PrimaryDarkMode}}" />
+
+        <Setter Property="TextColor"
+                Value="{StaticResource WhiteColor}" />
+
+        <Setter Property="CornerRadius"
+                Value="14" />
+
+        <Setter Property="Padding"
+                Value="16,10" />
+
+        <Setter Property="FontAttributes"
+                Value="Bold" />
+    </Style>
+
+    <!-- =======================================================
+       ENTRY
+    ======================================================== -->
+    <Style TargetType="Entry">
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightText},
+                Dark={StaticResource DarkText}}" />
+
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightSurface},
+                Dark={StaticResource DarkSurface}}" />
+
+        <Setter Property="PlaceholderColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightTextMuted},
+                Dark={StaticResource DarkTextMuted}}" />
+    </Style>
+
+    <!-- =======================================================
+       EDITOR
+    ======================================================== -->
+    <Style TargetType="Editor">
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightText},
+                Dark={StaticResource DarkText}}" />
+
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightSurface},
+                Dark={StaticResource DarkSurface}}" />
+    </Style>
+
+    <!-- =======================================================
+       SEARCHBAR
+    ======================================================== -->
+    <Style TargetType="SearchBar">
+        <Setter Property="TextColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightText},
+                Dark={StaticResource DarkText}}" />
+
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightSurface},
+                Dark={StaticResource DarkSurface}}" />
+
+        <Setter Property="PlaceholderColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightTextMuted},
+                Dark={StaticResource DarkTextMuted}}" />
+    </Style>
+
+    <!-- =======================================================
+       FRAME / CARD
+    ======================================================== -->
+    <Style TargetType="Frame">
+        <Setter Property="CornerRadius"
+                Value="20" />
+
+        <Setter Property="Padding"
+                Value="16" />
+
+        <Setter Property="HasShadow"
+                Value="True" />
+
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightSurface},
+                Dark={StaticResource DarkSurface}}" />
+
+        <Setter Property="BorderColor"
+                Value="{AppThemeBinding
+                Light={StaticResource LightBorder},
+                Dark={StaticResource DarkBorder}}" />
+    </Style>
+
+</ResourceDictionary>

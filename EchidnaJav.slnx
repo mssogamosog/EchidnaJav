@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="EchidnaJav.Core/EchidnaJav.Core.csproj" Id="bce62d11-e77b-41a1-bf7f-de4fcfbd1716" />
   <Project Path="EchidnaJav/EchidnaJav.csproj" />
+  <Project Path="EchidnaJavTest/EchidnaJav.Test.csproj" Id="8aa90a75-99bd-4c1c-a5de-f806b7b910c9" />
 </Solution>

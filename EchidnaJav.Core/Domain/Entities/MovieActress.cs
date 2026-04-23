@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace EchidnaJav.Domain.Entities
+namespace EchidnaJav.Core.Domain.Entities
 {
     public class MovieActress
     {

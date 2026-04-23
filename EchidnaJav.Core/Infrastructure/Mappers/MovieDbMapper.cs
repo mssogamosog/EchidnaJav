@@ -1,10 +1,10 @@
-﻿using EchidnaJav.Domain.Entities;
-using EchidnaJav.Infrastructure.Persistence;
+﻿using EchidnaJav.Core.Domain.Entities;
+using EchidnaJav.Core.Infrastructure.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace EchidnaJav.Infrastructure.Mappers
+namespace EchidnaJav.Core.Infrastructure.Mappers
 {
     public interface IMovieDbMapper
     {

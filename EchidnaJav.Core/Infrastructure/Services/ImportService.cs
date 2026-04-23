@@ -1,14 +1,14 @@
-﻿using EchidnaJav.Domain.DTOs;
-using EchidnaJav.Domain.Entities;
-using EchidnaJav.Infrastructure.Mappers;
-using EchidnaJav.Infrastructure.Persistence;
+﻿using EchidnaJav.Core.Domain.DTOs;
+using EchidnaJav.Core.Domain.Entities;
+using EchidnaJav.Core.Infrastructure.Mappers;
+using EchidnaJav.Core.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using System.Xml.Serialization;
 
-namespace EchidnaJav.Infrastructure.Services
+namespace EchidnaJav.Core.Infrastructure.Services
 {
     public interface IImportService
     {

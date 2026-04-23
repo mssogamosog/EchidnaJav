@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace EchidnaJav.Domain.Constants
+namespace EchidnaJav.Core.Domain.Constants
 {
     internal class ImageExtensions
     {

@@ -1,7 +1,7 @@
 ﻿@using CommunityToolkit.Maui.Storage
-@using EchidnaJav.Domain.DTOs
-@using EchidnaJav.Domain.States
-@using EchidnaJav.Infrastructure.Services
+@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Services
 @using Microsoft.Maui.Storage
 
 @inject IImportService ImportService
@@ -9,11 +9,6 @@
 
 @implements IDisposable
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">EchidnaJav</a>
-    </div>
-</div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 

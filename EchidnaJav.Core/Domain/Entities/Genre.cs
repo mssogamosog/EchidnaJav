@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 
-namespace EchidnaJav.Domain.Entities
+namespace EchidnaJav.Core.Domain.Entities
 {
     public class Genre
     {

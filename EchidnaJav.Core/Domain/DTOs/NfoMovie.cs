@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Xml.Serialization;
 
-namespace EchidnaJav.Domain.DTOs
+namespace EchidnaJav.Core.Domain.DTOs
 {
     using System.Xml.Serialization;
 
