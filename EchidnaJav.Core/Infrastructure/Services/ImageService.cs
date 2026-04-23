@@ -28,7 +28,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
     public class ImageService : IImageService
     {
-
+        private static readonly SemaphoreSlim _semaphore = new(4);
         private readonly ILogger<ImageService> _logger;
         private readonly IAppPaths _appPaths;
         private const int ThumbnailHeight = 420;
@@ -64,30 +64,42 @@ namespace EchidnaJav.Core.Infrastructure.Services
             {
                 return await GetImageBytes(cachePath);
             }
-
-            using var image = await Image.LoadAsync(originalPath);
-
-            switch (type)
+            await _semaphore.WaitAsync();
+            try
             {
-                case ImageType.Thumbnail:
-                    image.Mutate(x => x.Resize(0, ThumbnailHeight));
-                    break;
+                await Task.Run(async () =>
+                {
+                    using var image = await Image.LoadAsync(originalPath);
 
-                case ImageType.Cover:
-                    CropRightSide(image);
-                    image.Mutate(x => x.Resize(CoverWidth, CoverHeight));
-                    break;
-
-                case ImageType.Full:
-                    image.Mutate(x => x.Resize(new ResizeOptions
+                    switch (type)
                     {
-                        Mode = ResizeMode.Max,
-                        Size = new Size(FullMaxWidth, 0)
-                    }));
-                    break;
-            }
+                        case ImageType.Thumbnail:
+                            image.Mutate(x => x.Resize(0, ThumbnailHeight));
+                            break;
 
-            await image.SaveAsJpegAsync(cachePath);
+                        case ImageType.Cover:
+                            CropRightSide(image);
+                            image.Mutate(x => x.Resize(CoverWidth, CoverHeight));
+                            break;
+
+                        case ImageType.Full:
+                            image.Mutate(x => x.Resize(new ResizeOptions
+                            {
+                                Mode = ResizeMode.Max,
+                                Size = new Size(FullMaxWidth, 0)
+                            }));
+                            break;
+                    }
+
+                    await image.SaveAsJpegAsync(cachePath);
+                });
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+            
+
             return await GetImageBytes(cachePath);
         }
 

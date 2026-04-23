@@ -73,7 +73,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                         if (exists)
                         {
-                            Console.WriteLine($"⏩ Skipped (exists): {movie.Id}");
+                            _logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
                             continue;
                         }
 

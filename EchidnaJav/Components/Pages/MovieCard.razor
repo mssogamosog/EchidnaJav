@@ -1,20 +1,24 @@
 ﻿@using EchidnaJav.Core.Domain.Entities
 @using EchidnaJav.Core.Infrastructure.Services
+@inject IJSRuntime JS
 @inject IImageService ImageService
+@implements IDisposable
+@implements IAsyncDisposable
 
-<div class="movie-card">
+<div class="movie-card" @ref="_element">
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
-        @if (imageCache.TryGetValue(Movie.Id, out var img))
+
+        @if (_currentImage != null)
         {
-            <img src="@img"
-                 class="cover"
-                 loading="lazy" />
+            <img src="@_currentImage" class="cover" />
         }
         else
         {
             <div class="cover placeholder"></div>
         }
+
     </div>
+
     <div class="info">
         <div class="header">
             <div class="title id">[@Movie.Id] @Movie.Title</div>
@@ -26,28 +30,145 @@
     [Parameter] public Movie Movie { get; set; }
     [Parameter] public bool UseFullImage { get; set; }
 
-    
-    private Dictionary<string, string> imageCache = new();
-    
-    protected override async Task OnParametersSetAsync()
+    private string? _currentImage;
+    private ElementReference _element;
+    private DotNetObjectReference<MovieCard>? _dotnetRef;
+    private CancellationTokenSource? _cts;
+    private string? _currentRequestKey;
+    private bool _isVisible;
+
+    public async ValueTask DisposeAsync()
     {
-        imageCache.Clear();
 
-        var imagePath = ImageService.GetBestImage(Movie);
-
-        if (imagePath != null)
+        try
         {
+            if (_dotnetRef != null)
+            {
+                await JS.InvokeVoidAsync("imageObserver.unobserve", _element);
+                _dotnetRef.Dispose();
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+
+            try
+            {
+                await JS.InvokeVoidAsync(
+                    "imageObserver.observe",
+                    _element,
+                    _dotnetRef
+                );
+            }
+            catch
+            {
+                // ignore (render race)
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnVisible()
+    {
+        if (_isVisible)
+            return;
+
+        _isVisible = true;
+
+        await LoadImageIfNeeded();
+    }
+
+    [JSInvokable]
+    public void OnHidden()
+    {
+        _isVisible = false;
+
+        // 🔥 Cancel if scrolling away
+        _cts?.Cancel();
+    }
+
+    protected override void OnParametersSet()
+    {
+        var requestKey = $"{Movie.Id}_{UseFullImage}";
+
+        if (_currentRequestKey == requestKey)
+            return;
+
+        _currentRequestKey = requestKey;
+
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+
+        _currentImage = null;
+
+        // 🔥 Only load if already visible
+        if (_isVisible)
+        {
+            _ = LoadImageAsync(_cts.Token, requestKey);
+        }
+    }
+
+    private async Task LoadImageIfNeeded()
+    {
+        if (_currentImage != null)
+            return;
+
+        if (_cts == null)
+            _cts = new CancellationTokenSource();
+
+        await LoadImageAsync(_cts.Token, _currentRequestKey!);
+    }
+
+    private async Task LoadImageAsync(CancellationToken token, string requestKey)
+    {
+        try
+        {
+            var imagePath = ImageService.GetBestImage(Movie);
+            if (imagePath == null || token.IsCancellationRequested)
+                return;
+
             var type = UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
 
             var img = await ImageService.GetImageAsync(imagePath, type);
 
+            if (token.IsCancellationRequested || _currentRequestKey != requestKey)
+                return;
+
             if (!string.IsNullOrEmpty(img))
             {
-                imageCache[Movie.Id] = img;
+                _currentImage = img;
+                await InvokeAsync(StateHasChanged);
             }
         }
-
-        await InvokeAsync(StateHasChanged);
+        catch (TaskCanceledException)
+        {
+            // ignore
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Image load error: {ex}");
+        }
     }
-    
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+
+        if (_dotnetRef != null)
+        {
+            JS.InvokeVoidAsync("imageObserver.unobserve", _element);
+            _dotnetRef.Dispose();
+        }
+    }
 }

@@ -29,10 +29,7 @@ namespace EchidnaJav
             builder.Services.AddMauiBlazorWebView();
 
             // ✅ Correct DB path
-            var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");
-
-            builder.Services.AddDbContextFactory<AppDbContext>(options =>
-                options.UseSqlite($"Data Source={dbPath}"));
+           
 
             // ✅ DI
             builder.Services.AddScoped<IMovieIdService, MovieIdService>();
@@ -42,6 +39,11 @@ namespace EchidnaJav
             builder.Services.AddSingleton<ImportState>();
             builder.Services.AddSingleton<UIState>();
             builder.Services.AddSingleton<IAppPaths, AppPaths>();
+            builder.Services.AddDbContextFactory<AppDbContext>(options =>
+            {
+                var dbPath = Path.Combine(AppContext.BaseDirectory, "echidnajav.db");
+                options.UseSqlite($"Data Source={dbPath}");
+            });
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -51,13 +53,13 @@ namespace EchidnaJav
             var app = builder.Build();
 
 
-
             using(var scope = app.Services.CreateScope())
             {
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+                using var db = factory.CreateDbContext();
 
                 //db.Database.EnsureDeleted();   // 🧨 drops DB
-                db.Database.EnsureCreated();   // 🧱 recreates schema
+                db.Database.EnsureCreated();  // 🧱 recreates schema
             }
 
             return app;
