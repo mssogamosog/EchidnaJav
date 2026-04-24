@@ -8,7 +8,7 @@
 @inject UIState UI
 @implements IDisposable
 
-@if (movies == null)
+@if (Movies == null)
 {
     <p>Loading...</p>
 }
@@ -16,17 +16,15 @@ else
 {
     <div class="movie-grid"
          style="--card-width:@($"{EffectiveWidth}px")">
-
-        @foreach (var movie in movies)
+        @foreach (var movie in Movies)
         {
-            <MovieCard Movie="movie" UseFullImage="UI.UseWideView" />
-        }
-
+            <MovieCard @key="movie.Id" Movie="movie" UseFullImage="UI.UseWideView" />
+        }   
     </div>
 }
 
 @code {
-    private List<MovieDto> movies = new();
+    private List<MovieDto> Movies = new();
 
     private int EffectiveWidth => UI.UseWideView
     ? (int)(UI.CardWidth * 2.1)
@@ -45,7 +43,7 @@ else
     {
         var result = await MovieRepo.GetMoviesAsync( 0, int.MaxValue);
 
-        movies.AddRange(result);
+        Movies.AddRange(result);
         currentPage++;
 
         StateHasChanged();

@@ -41,6 +41,8 @@ namespace EchidnaJav
             builder.Services.AddSingleton<UIState>();
             builder.Services.AddSingleton<IAppPaths, AppPaths>();
             builder.Services.AddScoped<IMovieRepositoryService, MovieRepositoryService>();
+            builder.Services.AddScoped<INavigationStateService, NavigationStateService>();
+            
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
                 var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");

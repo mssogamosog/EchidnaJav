@@ -3,22 +3,18 @@
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
 @inject IImageService ImageService
-@implements IDisposable
 @implements IAsyncDisposable
-@inject NavigationManager Nav
 
-<div class="movie-card" @ref="_element" @onclick="OpenMovie">
+<a href="/movie/@Movie.Id" class="movie-card" @ref="_element">
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
-
         @if (_currentImage != null)
         {
-            <img src="@_currentImage" class="cover" />
+            <img src="@_currentImage" class="cover" alt="@Movie.Title cover" />
         }
         else
         {
-            <div class="cover placeholder"></div>
+            <div class="cover-placeholder"></div>
         }
-
     </div>
 
     <div class="info">
@@ -26,10 +22,10 @@
             <div class="title id">[@Movie.Id] @Movie.Title</div>
         </div>
     </div>
-</div>
+</a>
 
 @code {
-    [Parameter] public MovieDto Movie { get; set; }
+    [Parameter, EditorRequired] public MovieDto Movie { get; set; } = default!;
     [Parameter] public bool UseFullImage { get; set; }
 
     private string? _currentImage;
@@ -39,38 +35,22 @@
     private string? _currentRequestKey;
     private bool _isVisible;
 
-    public async ValueTask DisposeAsync()
+    // DRY property for image type
+    private ImageType TargetImageType => UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
+
+    protected override void OnInitialized()
     {
-
-        try
-        {
-            if (_dotnetRef != null)
-            {
-                await JS.InvokeVoidAsync("imageObserver.unobserve", _element);
-                _dotnetRef.Dispose();
-            }
-        }
-        catch
-        {
-            // ignore
-        }
-
-        _cts?.Cancel();
-        _cts?.Dispose();
+        ImageService.OnImageGenerated += HandleImageGenerated;
     }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             _dotnetRef = DotNetObjectReference.Create(this);
-
             try
             {
-                await JS.InvokeVoidAsync(
-                    "imageObserver.observe",
-                    _element,
-                    _dotnetRef
-                );
+                await JS.InvokeVoidAsync("imageObserver.observe", _element, _dotnetRef);
             }
             catch
             {
@@ -78,73 +58,59 @@
             }
         }
     }
-
-    [JSInvokable]
-    public async Task OnVisible()
-    {
-        if (_isVisible)
-            return;
-
-        _isVisible = true;
-
-        await LoadImageIfNeeded();
-    }
-
-    [JSInvokable]
-    public void OnHidden()
-    {
-        _isVisible = false;
-
-        // 🔥 Cancel if scrolling away
-        _cts?.Cancel();
-    }
+    // protected override bool ShouldRender()
+    // {       
+    //     return _currentImage != null;
+    // }
 
     protected override void OnParametersSet()
     {
         var requestKey = $"{Movie.Id}_{UseFullImage}";
 
-        if (_currentRequestKey == requestKey)
-            return;
+        if (_currentRequestKey == requestKey) return;
 
         _currentRequestKey = requestKey;
-
-        _cts?.Cancel();
-        _cts = new CancellationTokenSource();
-
         _currentImage = null;
 
-        // 🔥 Only load if already visible
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
         if (_isVisible)
         {
             _ = LoadImageAsync(_cts.Token, requestKey);
         }
     }
 
-    private async Task LoadImageIfNeeded()
+    [JSInvokable]
+    public async Task OnVisible()
     {
-        if (_currentImage != null)
-            return;
+        if (_isVisible) return;
+        _isVisible = true;
 
-        if (_cts == null)
-            _cts = new CancellationTokenSource();
+        if (_currentImage == null)
+        {
+            _cts ??= new CancellationTokenSource();
+            await LoadImageAsync(_cts.Token, _currentRequestKey!);
+        }
+    }
 
-        await LoadImageAsync(_cts.Token, _currentRequestKey!);
+    [JSInvokable]
+    public void OnHidden()
+    {
+        _isVisible = false;
+        _cts?.Cancel();
     }
 
     private async Task LoadImageAsync(CancellationToken token, string requestKey)
     {
         try
         {
-            var imagePath = Movie.ImagePath;
-            if (imagePath == null || token.IsCancellationRequested)
-                return;
+            if (string.IsNullOrEmpty(Movie.ImagePath) || token.IsCancellationRequested) return;
 
-            var type = UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
+            var img = await ImageService.GetImageAsync(Movie.ImagePath, TargetImageType);
 
-            var img = await ImageService.GetImageAsync(imagePath, type);
-
-            if (token.IsCancellationRequested || _currentRequestKey != requestKey)
-                return;
+            if (token.IsCancellationRequested || _currentRequestKey != requestKey) return;
 
             if (!string.IsNullOrEmpty(img))
             {
@@ -152,57 +118,49 @@
                 await InvokeAsync(StateHasChanged);
             }
         }
-        catch (TaskCanceledException)
-        {
-            // ignore
-        }
+        catch (TaskCanceledException) { /* ignore */ }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Image load error: {ex}");
         }
     }
-    protected override void OnInitialized()
+
+    // Removed async void
+    private void HandleImageGenerated(string path)
     {
-        ImageService.OnImageGenerated += HandleImageGenerated;
-    }
-    private async void HandleImageGenerated(string path)
-    {
-        try
+        if (string.IsNullOrEmpty(Movie.ImagePath)) return;
+
+        var expected = ImageService.GetCachePath(Movie.ImagePath, TargetImageType);
+        if (path != expected) return;
+
+        // Ensure UI thread update without making the event handler async void
+        InvokeAsync(async () =>
         {
-            var original = Movie.ImagePath;
-            if (original == null)
-                return;
-
-            var type = UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
-
-            var expected = ImageService.GetCachePath(original, type);
-
-            if (path != expected)
-                return;
-
-            // 🔥 ensure UI thread update
-            await InvokeAsync(async () =>
+            try
             {
-                _currentImage = await ImageService.GetImageAsync(original, type);
+                _currentImage = await ImageService.GetImageAsync(Movie.ImagePath, TargetImageType);
                 StateHasChanged();
-            });
-        }
-        catch { }
+            }
+            catch { /* ignore */ }
+        });
     }
-    public void Dispose()
+
+    public async ValueTask DisposeAsync()
     {
         ImageService.OnImageGenerated -= HandleImageGenerated;
+        
         _cts?.Cancel();
         _cts?.Dispose();
 
         if (_dotnetRef != null)
         {
-            JS.InvokeVoidAsync("imageObserver.unobserve", _element);
+            try
+            {
+                await JS.InvokeVoidAsync("imageObserver.unobserve", _element);
+            }
+            catch { /* ignore */ }
+            
             _dotnetRef.Dispose();
         }
-    }
-    private void OpenMovie()
-    {
-        Nav.NavigateTo($"/movie/{Movie.Id}");
     }
 }

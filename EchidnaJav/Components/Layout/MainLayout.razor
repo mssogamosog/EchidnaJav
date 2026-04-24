@@ -1,7 +1,9 @@
 ﻿@using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Services
 @inherits LayoutComponentBase
 @inject UIState UI
 @inject IJSRuntime JS
+@inject INavigationStateService NavState
 @implements IAsyncDisposable
 
 <div class="app-shell">
@@ -12,7 +14,17 @@
         <header class="header-bar">
 
             <button class="menu-btn" @onclick="ToggleMenu">☰</button>
-
+            <div class="browser-controls">
+                <button class="nav-btn" disabled="@(!NavState.CanGoBack)" @onclick="NavState.GoBack">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <button class="nav-btn" disabled="@(!NavState.CanGoForward)" @onclick="NavState.GoForward">
+                    <i class="bi bi-arrow-right"></i>
+                </button>
+                <button class="nav-btn reload-btn" @onclick="NavState.Reload">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
             <div class="logo">
                 EchidnaJav
             </div>
@@ -110,7 +122,11 @@
     {
         menuOpen = false;
     }
-
+    protected override void OnInitialized()
+    {
+        // Listen for navigation changes to update button disabled states
+        NavState.StateChanged += StateHasChanged;
+    }
     async Task LiveResize(ChangeEventArgs e)
     {
         var value = e.Value!.ToString();
@@ -164,6 +180,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        NavState.StateChanged -= StateHasChanged;
         objRef?.Dispose();
     }
 }

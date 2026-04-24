@@ -111,6 +111,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
                         var bestImage = _imageService.GetBestImage(movie);
                         dbMovie.PrimaryImagePath = bestImage;
+
                         db.Movies.Add(dbMovie);
                         /*
                         foreach (var e in db.ChangeTracker.Entries())

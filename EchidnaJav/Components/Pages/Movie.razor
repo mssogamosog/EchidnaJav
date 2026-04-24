@@ -5,36 +5,35 @@
 @inject IMovieRepositoryService Repo
 @inject IImageService ImageService
 
-@if (movie == null)
-{
-    <p>Loading...</p>
-}
-else
-{
-    <div class="movie-page-container">
+<div class="movie-page-container">
 
-        <!-- HEADER IMAGE -->
-        <div class="media-header-area">
-            <img src="@fullImage" class="full-cover-img" />
+    <!-- TITLE -->
+    <div class="title-area">
+        <h4 class="movie-id">@movie?.Id</h4>
+        <h1 class="movie-title">@movie?.Title</h1>
+    </div>
 
-            <div class="media-controls-overlay">
-                @if (movie.Files.Any())
-                {
-                    <button class="btn-play">▶ Play @movie.Id</button>
-                }
-            </div>
+    <!-- FULL IMAGE -->
+    <div class="media-header-area">
+        <img src="@fullImage" class="full-cover-img" />
+
+        <div class="media-controls-overlay">
+            @if (movie?.Files?.Any() == true)
+            {
+                <button class="btn-play">▶ Play</button>
+            }
         </div>
+    </div>
 
-        <!-- TITLE -->
-        <div class="title-area">
-            <div class="title-header">
-                <h1>@movie.Title</h1>
-                <span class="movie-id">@movie.Id</span>
-            </div>
-        </div>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <h3>Recommended</h3>
+        <p>(Coming later)</p>
+    </div>
 
-        <!-- DETAILS -->
-        <div class="details-area">
+    <!-- ✅ DETAILS WRAPPER (IMPORTANT) -->
+    <div class="details-area">
+        <div class="details-grid">
 
             <!-- POSTER -->
             <div class="poster-container">
@@ -42,73 +41,70 @@ else
             </div>
 
             <!-- INFO -->
-            <div class="info-container">
+            <div class="info-main">
+                <div class="movie-id">@movie?.Id</div>
                 <div class="info-grid">
-
                     <div>Released:</div>
-                    <div>@(movie.Premiered?.ToString("yyyy-MM-dd") ?? "Unknown")</div>
+                    <div>@(movie?.Premiered?.ToString("yyyy-MM-dd") ?? "Unknown")</div>
 
                     <div>Runtime:</div>
-                    <div>@(movie.Runtime ?? 0) min</div>
+                    <div>@(movie?.Runtime ?? 0) min</div>
 
                     <div>Studio:</div>
-                    <div>@movie.Studio</div>
+                    <div>@movie?.Studio</div>
 
                     <div>Director:</div>
-                    <div>@movie.Director</div>
-
-                    <div>Cast:</div>
-                    <div>
-                        @foreach (var actor in movie.Cast)
-                        {
-                            <span class="actor-name">@actor</span>
-                        }
-                    </div>
+                    <div>@movie?.Director</div>
                 </div>
 
-                <!-- PLOT -->
-                @if (!string.IsNullOrEmpty(movie.Plot))
+                @if (!string.IsNullOrEmpty(movie?.Plot))
                 {
                     <div class="plot-box">
                         <p>@movie.Plot</p>
                     </div>
                 }
+            </div>
 
-                <!-- GENRES -->
-                <div class="tags-container">
-                    @foreach (var g in movie.Genres)
+            <!-- CAST -->
+            <div class="cast-section">
+                <h4>Cast</h4>
+                <div class="cast-grid">
+                    @foreach (var actor in movie?.Cast ?? Enumerable.Empty<string>())
                     {
-                        <span class="genre-tag">@g</span>
-                    }
-                </div>
-
-                <!-- FILES -->
-                <div class="files-container">
-                    <h5>Available Files</h5>
-
-                    @foreach (var file in movie.Files)
-                    {
-                        <div class="file-item">
-                            🎬 @file.FileName
+                        <div class="actor-card">
+                            <div class="actor-img-placeholder"></div>
+                            <span>@actor</span>
                         </div>
                     }
                 </div>
-
             </div>
-        </div>
 
-        <!-- SIDEBAR -->
-        <div class="sidebar">
-            <h3>Recommended</h3>
-            <p>(Coming later)</p>
+            <!-- TAGS -->
+            <div class="tags-container">
+                @foreach (var g in movie?.Genres ?? Enumerable.Empty<string>())
+                {
+                    <span class="genre-tag">@g</span>
+                }
+            </div>
+
+            <!-- FILES -->
+            <div class="files-container">
+                <h5>Available Files</h5>
+                @foreach (var file in movie?.Files ?? Enumerable.Empty<FileDto>())
+                {
+                    <div class="file-item">🎬 @file.FileName</div>
+                }
+            </div>
+
         </div>
     </div>
-}
+
+</div>
+
 @code {
     [Parameter] public string Id { get; set; }
 
     private MovieDetailsDto? movie;
-
     private string? fullImage;
     private string? posterImage;
 

@@ -182,7 +182,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     !f.FileName.Contains("thumb", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(f => f.FileName.Contains("cover", StringComparison.OrdinalIgnoreCase))
                 .ThenByDescending(f => f.FileName.Contains("poster", StringComparison.OrdinalIgnoreCase))
-                .ThenBy(f => f.SizeBytes)
+                .ThenByDescending(f => f.SizeBytes) 
                 .Select(f => f.FilePath)
                 .FirstOrDefault();
         }

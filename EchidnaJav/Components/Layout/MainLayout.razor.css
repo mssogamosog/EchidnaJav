@@ -280,3 +280,41 @@ html, body {
 * {
     transition: background-color .25s ease, color .25s ease, border-color .25s ease;
 }
+/* =======================================================
+   BROWSER CONTROLS
+======================================================= */
+.browser-controls {
+    display: flex;
+    gap: 6px;
+    margin-right: 12px;
+}
+
+.nav-btn {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+    .nav-btn:hover:not(:disabled) {
+        background: var(--focus);
+        color: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .nav-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        background: transparent;
+    }
+
+.reload-btn {
+    margin-left: 4px;
+}
