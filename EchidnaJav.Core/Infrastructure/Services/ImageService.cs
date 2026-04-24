@@ -116,6 +116,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         public async Task<string?> GetImageAsync(string originalPath, ImageType type)
         {
+            if (originalPath == null) return null;
             if (type == ImageType.Full)
             {
                 // 🔥 JUST LOAD ORIGINAL (no processing)

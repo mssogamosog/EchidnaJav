@@ -24,17 +24,21 @@ namespace EchidnaJav.Core.Infrastructure.Services
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
         private readonly ILogger<ImportService> _logger;
         private readonly IMovieDbMapper _movieDbMapper;
+        private readonly IImageService _imageService;
+        private readonly ConcurrentDictionary<string, bool> _queuedImages = new();
 
         public ImportService(
             IMovieIdService movieIdService,
             IDbContextFactory<AppDbContext> dbFactory,
             ILogger<ImportService> logger,
-            IMovieDbMapper movieDbMapper)
+            IMovieDbMapper movieDbMapper,
+            IImageService imageService)
         {
             _movieIdService = movieIdService;
             _dbFactory = dbFactory;
             _logger = logger;
             _movieDbMapper = movieDbMapper;
+            _imageService = imageService;
         }
 
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
@@ -45,10 +49,29 @@ namespace EchidnaJav.Core.Infrastructure.Services
             {
                 FullMode = BoundedChannelFullMode.Wait
             });
+            // 🔥 IMAGE PIPELINE
+            var imageChannel = Channel.CreateUnbounded<string>();
+            var imageWriter = imageChannel.Writer;
+            var imageReader = imageChannel.Reader;
 
+            
             var writer = channel.Writer;
             var reader = channel.Reader;
-
+            // 🔥 start image workers 
+            var imageWorkers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            {
+                await foreach (var path in imageReader.ReadAllAsync())
+                {
+                    try
+                    {
+                        await _imageService.GenerateImagesAsync(path);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "❌ Image generation failed: {Path}", path);
+                    }
+                }
+            })).ToList();
             // 🧵 Consumer (DB writer)
             var consumerTask = Task.Run(async () =>
             {
@@ -74,11 +97,20 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         if (exists)
                         {
                             _logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
+                            processed++;
+                            progress?.Report(new ImportProgress
+                            {
+                                Processed = processed,
+                                Total = total,
+                                CurrentMovieId = movie.Id,
+                                Status = "Skipped"
+                            });
                             continue;
                         }
 
                         var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
-
+                        var bestImage = _imageService.GetBestImage(movie);
+                        dbMovie.PrimaryImagePath = bestImage;
                         db.Movies.Add(dbMovie);
                         /*
                         foreach (var e in db.ChangeTracker.Entries())
@@ -90,6 +122,13 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         await db.SaveChangesAsync(ct);
 
                         processed++;
+
+                        
+
+                        if (bestImage != null && _queuedImages.TryAdd(bestImage, true))
+                        {
+                            await imageWriter.WriteAsync(bestImage, ct);
+                        }
 
                         progress?.Report(new ImportProgress
                         {
@@ -121,6 +160,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     }
                 }
             }, ct);
+            
 
             // 🧵 Producers (parallel)
             await Parallel.ForEachAsync(groups, new ParallelOptions
@@ -191,6 +231,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
             writer.Complete();
             await consumerTask;
+            // finish image pipeline
+            imageWriter.Complete();
+            await Task.WhenAll(imageWorkers);
         }
 
         // 📦 Group files (parallel)

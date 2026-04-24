@@ -1,11 +1,13 @@
-﻿@using EchidnaJav.Core.Domain.Entities
+﻿@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.Entities
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
 @inject IImageService ImageService
 @implements IDisposable
 @implements IAsyncDisposable
+@inject NavigationManager Nav
 
-<div class="movie-card" @ref="_element">
+<div class="movie-card" @ref="_element" @onclick="OpenMovie">
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
 
         @if (_currentImage != null)
@@ -27,7 +29,7 @@
 </div>
 
 @code {
-    [Parameter] public Movie Movie { get; set; }
+    [Parameter] public MovieDto Movie { get; set; }
     [Parameter] public bool UseFullImage { get; set; }
 
     private string? _currentImage;
@@ -133,7 +135,7 @@
     {
         try
         {
-            var imagePath = ImageService.GetBestImage(Movie);
+            var imagePath = Movie.ImagePath;
             if (imagePath == null || token.IsCancellationRequested)
                 return;
 
@@ -167,7 +169,7 @@
     {
         try
         {
-            var original = ImageService.GetBestImage(Movie);
+            var original = Movie.ImagePath;
             if (original == null)
                 return;
 
@@ -198,5 +200,9 @@
             JS.InvokeVoidAsync("imageObserver.unobserve", _element);
             _dotnetRef.Dispose();
         }
+    }
+    private void OpenMovie()
+    {
+        Nav.NavigateTo($"/movie/{Movie.Id}");
     }
 }

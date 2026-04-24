@@ -1,43 +1,53 @@
 /* =======================================================
    APP.CSS - FULLY THEMED FOR MAUI BLAZOR APP
-   Elegant Purple Theme (Light + Dark)
+   White Butterfly Theme (Green/Teal Glow)
 ======================================================= */
 
 /* ---------- LIGHT MODE ---------- */
+@import url('c:\users\mssg_\source\repos\echidnajav\echidnajav\wwwroot\app.css');
+
 :root {
-    --bg: #F8F6FB;
+    --bg: #F4F8FB;
     --surface: #FFFFFF;
-    --surface-2: #F4F0F8;
-    --text: #39283F;
-    --text-muted: #5B4759;
-    --primary: #6E5A78;
-    --primary-hover: #5B4759;
-    --secondary: #B7A8C6;
-    --border: #DDD8E8;
-    --success: #8AD5C2;
-    --danger: #C88FA0;
-    --warning: #D6C18B;
-    --info: #BFD6F6;
-    --focus: rgba(110, 90, 120, 0.35);
+    --surface-2: #E8F0F5;
+    --text: #111A1F;
+    --text-muted: #516675;
+    --primary: #8CA600;
+    --primary-hover: #768C00;
+    --secondary: #009980;
+    --border: #D0DDE5;
+    --success: #009980;
+    --danger: #E63946;
+    --warning: #E9C46A;
+    --info: #457B9D;
+    --focus: rgba(140, 166, 0, 0.35);
+    /* Layout specific vars */
+    --shadow: 0 4px 12px rgba(17, 26, 31, 0.08);
+    --glass: rgba(244, 248, 251, 0.85);
+    --overlay: rgba(244, 248, 251, 0.6);
 }
 
 /* ---------- DARK MODE ---------- */
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg: #39283F;
-        --surface: #4A3651;
-        --surface-2: #5B4759;
-        --text: #F1EEF6;
-        --text-muted: #DDD8E8;
-        --primary: #B7A8C6;
-        --primary-hover: #CFC9DA;
-        --secondary: #6E5A78;
-        --border: #6A5A72;
-        --success: #8AD5C2;
-        --danger: #C88FA0;
-        --warning: #D6C18B;
-        --info: #BFD6F6;
-        --focus: rgba(183, 168, 198, 0.35);
+        --bg: #0F161A;
+        --surface: #1A262D;
+        --surface-2: #21313A;
+        --text: #F0F5F9;
+        --text-muted: #8B9EAC;
+        --primary: #D4FF33;
+        --primary-hover: #B2E600;
+        --secondary: #00E5C0;
+        --border: #2E424D;
+        --success: #00E5C0;
+        --danger: #EF476F;
+        --warning: #FFD166;
+        --info: #118AB2;
+        --focus: rgba(212, 255, 51, 0.35);
+        /* Layout specific vars */
+        --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        --glass: rgba(15, 22, 26, 0.85);
+        --overlay: rgba(15, 22, 26, 0.7);
     }
 }
 
@@ -51,8 +61,7 @@ html, body {
 }
 
 /* ---------- LINKS ---------- */
-a,
-.btn-link {
+a, .btn-link {
     color: var(--primary);
     text-decoration: none;
 }
@@ -64,7 +73,7 @@ a,
 
 /* ---------- BUTTONS ---------- */
 .btn-primary {
-    color: #fff;
+    color: var(--bg); /* High contrast against the primary color */
     background-color: var(--primary);
     border-color: var(--primary);
 }
@@ -75,11 +84,7 @@ a,
     }
 
 /* ---------- FOCUS ---------- */
-.btn:focus,
-.btn:active:focus,
-.btn-link.nav-link:focus,
-.form-control:focus,
-.form-check-input:focus {
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
     box-shadow: 0 0 0 0.1rem var(--bg), 0 0 0 0.25rem var(--focus);
 }
 
@@ -112,10 +117,10 @@ h1, h2, h3, h4, h5 {
 
 /* ---------- BLAZOR ERROR UI ---------- */
 #blazor-error-ui {
-    background: #fff7d6;
-    color: #3b2d00;
+    background: var(--warning);
+    color: var(--bg);
     bottom: 0;
-    box-shadow: 0 -2px 8px rgba(0,0,0,.12);
+    box-shadow: var(--shadow);
     box-sizing: border-box;
     display: none;
     left: 0;
@@ -146,10 +151,7 @@ h1, h2, h3, h4, h5 {
     }
 
 /* ---------- FORMS ---------- */
-input,
-textarea,
-select,
-.form-control {
+input, textarea, select, .form-control {
     background: var(--surface);
     color: var(--text);
     border: 1px solid var(--border);
@@ -166,14 +168,12 @@ select,
 }
 
 /* ---------- FLOATING LABEL ---------- */
-.form-floating > .form-control-plaintext::placeholder,
-.form-floating > .form-control::placeholder {
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
     color: var(--text-muted);
     text-align: end;
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder,
-.form-floating > .form-control:focus::placeholder {
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
 
@@ -183,7 +183,6 @@ select,
 }
 
 @supports (-webkit-touch-callout: none) {
-
     .status-bar-safe-area {
         display: flex;
         position: sticky;
@@ -201,13 +200,12 @@ select,
 }
 
 /* ---------- OPTIONAL CARDS ---------- */
-.card,
-.panel,
-.surface {
+.card, .panel, .surface {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 18px;
     padding: 1rem;
+    box-shadow: var(--shadow);
 }
 
 /* ---------- SMOOTH TRANSITIONS ---------- */

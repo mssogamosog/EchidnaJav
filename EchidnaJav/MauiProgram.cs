@@ -6,6 +6,7 @@ using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SQLitePCL;
+using System.Diagnostics;
 
 namespace EchidnaJav
 {
@@ -39,11 +40,14 @@ namespace EchidnaJav
             builder.Services.AddSingleton<ImportState>();
             builder.Services.AddSingleton<UIState>();
             builder.Services.AddSingleton<IAppPaths, AppPaths>();
+            builder.Services.AddScoped<IMovieRepositoryService, MovieRepositoryService>();
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
-                var dbPath = Path.Combine(AppContext.BaseDirectory, "echidnajav.db");
+                var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");
                 options.UseSqlite($"Data Source={dbPath}");
+                //Process.Start("explorer.exe", FileSystem.AppDataDirectory);
             });
+            
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -58,8 +62,9 @@ namespace EchidnaJav
                 var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
                 using var db = factory.CreateDbContext();
 
-                db.Database.EnsureDeleted();   // 🧨 drops DB
+                //db.Database.EnsureDeleted();   // 🧨 drops DB
                 db.Database.EnsureCreated();  // 🧱 recreates schema
+                //db.Database.Migrate();
             }
 
             return app;

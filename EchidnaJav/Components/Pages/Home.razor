@@ -1,9 +1,10 @@
 ﻿@page "/"
+@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.Entities
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
-@inject AppDbContext Db
+@inject IMovieRepositoryService MovieRepo
 @inject UIState UI
 @implements IDisposable
 
@@ -25,17 +26,29 @@ else
 }
 
 @code {
-    private List<Movie> movies;
+    private List<MovieDto> movies = new();
 
     private int EffectiveWidth => UI.UseWideView
     ? (int)(UI.CardWidth * 2.1)
     : UI.CardWidth;
 
+
+    private int pageSize = 100;
+    private int currentPage = 0;
+
     protected override async Task OnInitializedAsync()
     {
-        movies = await Db.Movies
-            .Include(m => m.Files)
-            .ToListAsync();
+        await LoadMore();
+    }
+
+    private async Task LoadMore()
+    {
+        var result = await MovieRepo.GetMoviesAsync( 0, int.MaxValue);
+
+        movies.AddRange(result);
+        currentPage++;
+
+        StateHasChanged();
     }
 
     protected override void OnInitialized()
