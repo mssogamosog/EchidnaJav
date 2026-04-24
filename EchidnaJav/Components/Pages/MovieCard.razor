@@ -159,9 +159,37 @@
             System.Diagnostics.Debug.WriteLine($"Image load error: {ex}");
         }
     }
+    protected override void OnInitialized()
+    {
+        ImageService.OnImageGenerated += HandleImageGenerated;
+    }
+    private async void HandleImageGenerated(string path)
+    {
+        try
+        {
+            var original = ImageService.GetBestImage(Movie);
+            if (original == null)
+                return;
 
+            var type = UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
+
+            var expected = ImageService.GetCachePath(original, type);
+
+            if (path != expected)
+                return;
+
+            // 🔥 ensure UI thread update
+            await InvokeAsync(async () =>
+            {
+                _currentImage = await ImageService.GetImageAsync(original, type);
+                StateHasChanged();
+            });
+        }
+        catch { }
+    }
     public void Dispose()
     {
+        ImageService.OnImageGenerated -= HandleImageGenerated;
         _cts?.Cancel();
         _cts?.Dispose();
 

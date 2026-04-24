@@ -58,7 +58,7 @@ namespace EchidnaJav
                 var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
                 using var db = factory.CreateDbContext();
 
-                //db.Database.EnsureDeleted();   // 🧨 drops DB
+                db.Database.EnsureDeleted();   // 🧨 drops DB
                 db.Database.EnsureCreated();  // 🧱 recreates schema
             }
 
