@@ -39,6 +39,7 @@ namespace EchidnaJav
             builder.Services.AddScoped<IImageService, ImageService>();
             builder.Services.AddSingleton<ImportState>();
             builder.Services.AddSingleton<UIState>();
+            builder.Services.AddScoped<SearchState>();
             builder.Services.AddSingleton<IAppPaths, AppPaths>();
             builder.Services.AddScoped<IMovieRepositoryService, MovieRepositoryService>();
             builder.Services.AddScoped<INavigationStateService, NavigationStateService>();

@@ -45,3 +45,47 @@ window.imageObserver = {
         }
     }
 };
+window.infiniteScroll = {
+    observer: null,
+
+    observe: function (element, dotnetRef) {
+        this.observer = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                // When the trigger div enters the viewport (plus margin), tell C#
+                dotnetRef.invokeMethodAsync("OnScrollToBottom").catch(() => { });
+            }
+        }, {
+            root: null,
+            rootMargin: "600px", // Trigger 600px before reaching the bottom
+            threshold: 0.1
+        });
+
+        this.observer.observe(element);
+    },
+
+    unobserve: function (element) {
+        if (this.observer) {
+            this.observer.disconnect();
+            this.observer = null;
+        }
+    }
+};
+window.getGridColumns = function () {
+    const grid = document.querySelector('.movie-grid');
+    if (!grid) return 1;
+
+    // getComputedStyle returns the exact rendered tracks, e.g., "200px 200px 200px"
+    const style = window.getComputedStyle(grid);
+    const columns = style.gridTemplateColumns.split(' ').length;
+
+    return columns > 0 ? columns : 1;
+};
+window.getScrollPos = function () {
+    const el = document.querySelector('.content-area');
+    return el ? el.scrollTop : 0;
+};
+
+window.setScrollPos = function (pos) {
+    const el = document.querySelector('.content-area');
+    if (el) el.scrollTop = pos;
+};

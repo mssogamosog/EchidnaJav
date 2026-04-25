@@ -24,15 +24,15 @@
     overflow: hidden;
 }
 
-    /* Wide mode */
+/* Wide mode */
     .cover-container.wide {
-        aspect-ratio: 3 / 2;
+        aspect-ratio: 16/11;
     }
 
-    /* Poster mode */
-    .cover-container.poster {
-        aspect-ratio: 2 / 3;
-    }
+/* Poster mode */
+.cover-container.poster {
+    aspect-ratio: 2 / 3;
+}
 
 .cover {
     width: 100%;
