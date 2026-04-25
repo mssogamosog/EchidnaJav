@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Maui;
 using EchidnaJav.Core.Domain.States;
+using EchidnaJav.Core.Infrastructure.FileSystem;
 using EchidnaJav.Core.Infrastructure.Mappers;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using EchidnaJav.Core.Infrastructure.Services;
@@ -43,7 +44,8 @@ namespace EchidnaJav
             builder.Services.AddSingleton<IAppPaths, AppPaths>();
             builder.Services.AddScoped<IMovieRepositoryService, MovieRepositoryService>();
             builder.Services.AddScoped<INavigationStateService, NavigationStateService>();
-            
+            builder.Services.AddScoped<ILocalMediaScanner, LocalMediaScanner>();
+            builder.Services.AddScoped<INfoParserService, NfoParserService>();
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
                 var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");

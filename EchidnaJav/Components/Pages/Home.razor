@@ -60,29 +60,24 @@ else if (Movies.Any())
     {
         InvokeAsync(async () =>
         {
-            // 🔥 1. Disconnect the old observer before we destroy the HTML
             if (_observerRegistered)
             {
                 try { await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement); } catch { }
                 _observerRegistered = false;
             }
-
-            // Reset everything for a fresh search
+            
             Movies.Clear();
             hasMore = true;
             isLoading = false;
             
-            // Trigger the first page of search results
             await LoadMore();
             
-            // StateHasChanged is automatically called inside LoadMore's finally block
         });
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // 🔥 2. If we loaded from cache, restore scroll. Otherwise, load fresh.
             if (Movies.Any())
             {
                 if (SearchState.ScrollPosition > 0)
@@ -96,7 +91,6 @@ else if (Movies.Any())
             }
         }
 
-        // Set up the infinite scroll observer (moved outside firstRender for search resilience)
         if (hasMore && !_observerRegistered)
         {
             _observerRegistered = true;
@@ -124,7 +118,6 @@ else if (Movies.Any())
 
         try
         {
-            // 1. Ask JavaScript how many columns are currently rendered
             int columns = 1;
             try
             {
@@ -158,14 +151,18 @@ else if (Movies.Any())
 
             if (result != null && result.Any())
             {
-                Movies.AddRange(result);
+                var newMovies = result.Where(fetched => !Movies.Any(existing => existing.Id == fetched.Id)).ToList();
 
+                if (newMovies.Any())
+                {
+                    Movies.AddRange(newMovies);
+                }
+    
                 if (result.Count() < dynamicPageSize)
                 {
                     hasMore = false;
                 }
 
-                // 🔥 3. Save the new list to the cache
                 SearchState.CachedMovies = new List<MovieDto>(Movies);
                 SearchState.HasMoreCached = hasMore;
             }
@@ -174,6 +171,10 @@ else if (Movies.Any())
                 hasMore = false;
                 SearchState.HasMoreCached = false;
             }
+        }
+        catch (Exception)
+        {       
+            hasMore = true;
         }
         finally
         {

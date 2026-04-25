@@ -84,13 +84,27 @@
             : (int)((ImportState.Progress.Processed * 100.0) / ImportState.Progress.Total);
 
     protected override void OnInitialized()
-    {
-        ImportState.OnChange += StateHasChanged;
+    {      
+        ImportState.OnChange += HandleStateChange;
     }
 
     public void Dispose()
     {
-        ImportState.OnChange -= StateHasChanged;
+        ImportState.OnChange -= HandleStateChange;
+    }
+    private void HandleStateChange()
+    {
+        _ = InvokeAsync(() =>
+        {
+            try
+            {
+                StateHasChanged();
+            }
+            catch
+            {
+                // Silently ignore if the component is disposed or heavily locked
+            }
+        });
     }
 
     private async Task PickFolder()

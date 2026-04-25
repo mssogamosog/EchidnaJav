@@ -1,5 +1,6 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
+using EchidnaJav.Core.Infrastructure.FileSystem;
 using EchidnaJav.Core.Infrastructure.Mappers;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,8 @@ namespace EchidnaJav.Core.Infrastructure.Services
         private readonly ILogger<ImportService> _logger;
         private readonly IMovieDbMapper _movieDbMapper;
         private readonly IImageService _imageService;
+        private readonly ILocalMediaScanner _localMediaScanner;
+        private readonly INfoParserService _nfoParserService;
         private readonly ConcurrentDictionary<string, bool> _queuedImages = new();
 
         public ImportService(
@@ -32,21 +35,40 @@ namespace EchidnaJav.Core.Infrastructure.Services
             IDbContextFactory<AppDbContext> dbFactory,
             ILogger<ImportService> logger,
             IMovieDbMapper movieDbMapper,
-            IImageService imageService)
+            IImageService imageService,
+            ILocalMediaScanner localMediaScanner,
+            INfoParserService nfoParserService)
         {
             _movieIdService = movieIdService;
             _dbFactory = dbFactory;
             _logger = logger;
             _movieDbMapper = movieDbMapper;
+            _nfoParserService = nfoParserService;
+            _localMediaScanner = localMediaScanner;
             _imageService = imageService;
         }
 
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
         {
-            var groups = await GroupFilesByMovieAsync(rootPath);
+            var groups = await _localMediaScanner.GroupFilesByMovieAsync(rootPath);
 
             int total = groups.Count;
             int processed = 0; // Shared counter
+            void Report(string status, string? movieId)
+            {
+                var current = Interlocked.Increment(ref processed);
+
+                if (current % 10 == 0 || current == total || status == "Failed")
+                {
+                    progress?.Report(new ImportProgress
+                    {
+                        Processed = current,
+                        Total = total,
+                        CurrentMovieId = movieId,
+                        Status = status
+                    });
+                }
+            }
 
             var channel = Channel.CreateBounded<Movie>(new BoundedChannelOptions(100)
             {
@@ -83,11 +105,12 @@ namespace EchidnaJav.Core.Infrastructure.Services
             {
                 try
                 {
-                    using var db = _dbFactory.CreateDbContext();
-                    var genreCache = await db.Genres.ToDictionaryAsync(g => g.Name.ToLower(), ct);
-                    var actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                   
                     await foreach (var movie in channel.Reader.ReadAllAsync(ct))
                     {
+                        using var db = _dbFactory.CreateDbContext();
+                        var genreCache = await db.Genres.ToDictionaryAsync(g => g.Name.ToLower(), ct);
+                        var actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
                         try
                         {                          
 
@@ -96,16 +119,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                             if (exists)
                             {
                                 _logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
-
-                                // 🔥 Thread-safe increment
-                                var currentProcessed = Interlocked.Increment(ref processed);
-                                progress?.Report(new ImportProgress
-                                {
-                                    Processed = currentProcessed,
-                                    Total = total,
-                                    CurrentMovieId = movie.Id,
-                                    Status = "Skipped"
-                                });
+                                Report("Skipped (Exists)", movie.Id);
                                 continue;
                             }
 
@@ -122,14 +136,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                             }
 
                             // 🔥 Thread-safe increment
-                            var curProcessed = Interlocked.Increment(ref processed);
-                            progress?.Report(new ImportProgress
-                            {
-                                Processed = curProcessed,
-                                Total = total,
-                                CurrentMovieId = dbMovie.Id,
-                                Status = "Imported"
-                            });
+                            Report("Imported", dbMovie.Id);
 
                             _logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
                         }
@@ -139,14 +146,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         }
                         catch (Exception ex)
                         {
-                            var curProcessed = Interlocked.Increment(ref processed);
-                            progress?.Report(new ImportProgress
-                            {
-                                Processed = curProcessed,
-                                Total = total,
-                                CurrentMovieId = movie?.Id,
-                                Status = "Failed"
-                            });
+                            Report("Failed", movie?.Id);
                             _logger.LogError(ex, $"❌ Failed saving movie {movie?.Id}");
                         }
                     }
@@ -174,7 +174,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         if (nfoFile != null)
                         {
                             // Passing movieId as fallback to prevent null IDs!
-                            var movie = await ParseNfoAsync_NoDb(nfoFile);
+                            var movie = await _nfoParserService.ParseNfoAsync(nfoFile);
 
                             if (movie != null)
                             {
@@ -188,7 +188,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                                         FileName = fi.Name,
                                         SizeBytes = fi.Length,
                                         LastModified = fi.LastWriteTime,
-                                        Hash = ComputeMetadataHash(file),
+                                        Hash = _localMediaScanner.ComputeMetadataHash(file),
                                         IsScanned = true
                                     };
                                 }).ToList();
@@ -198,16 +198,8 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         }
                         else
                         {
-                            // 🔥 THE FIX FOR THE 70% FREEZE: 
-                            // If there is no NFO, we MUST count it as processed so the math adds up!
-                            var curProcessed = Interlocked.Increment(ref processed);
-                            progress?.Report(new ImportProgress
-                            {
-                                Processed = curProcessed,
-                                Total = total,
-                                CurrentMovieId = movieId,
-                                Status = "Skipped (No NFO)"
-                            });
+                            // TODO : scrape metadata from online sources using movieId as query (if enabled in settings)
+                            Report("Skipped (No NFO)", movieId);
                         }
                     }
                     catch (OperationCanceledException)
@@ -216,8 +208,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     }
                     catch (Exception ex)
                     {
-                        var curProcessed = Interlocked.Increment(ref processed);
-                        progress?.Report(new ImportProgress { Processed = curProcessed, Total = total, CurrentMovieId = group.Key, Status = "Failed" });
+                        Report("Failed", group.Key);
                         _logger.LogError(ex, "❌ Failed processing group {MovieId}", group.Key);
                     }
                 });
@@ -236,129 +227,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 await Task.WhenAll(imageWorkers); 
             }
         }
-        // 📦 Group files (parallel)
-        public async Task<Dictionary<string, List<string>>> GroupFilesByMovieAsync(string rootPath)
-        {
-            var allFiles = Directory.GetFiles(rootPath, "*.*", SearchOption.AllDirectories);
+        
 
-            var groups = new ConcurrentDictionary<string, ConcurrentBag<string>>();
-
-            await Parallel.ForEachAsync(allFiles, (file, _) =>
-            {
-                var id = _movieIdService.ParseMovieID(file);
-
-                if (string.IsNullOrEmpty(id))
-                    return ValueTask.CompletedTask;
-
-                var bag = groups.GetOrAdd(id, _ => new ConcurrentBag<string>());
-                bag.Add(file);
-
-                return ValueTask.CompletedTask;
-            });
-
-            return groups.ToDictionary(k => k.Key, v => v.Value.ToList());
-        }
-
-        // 📄 Parse NFO (NO DB access)
-        private async Task<Movie?> ParseNfoAsync_NoDb(string path)
-        {
-            _logger.LogInformation("Reading NFO: {Path} (Exists: {Exists})", path, File.Exists(path));
-
-            if (!File.Exists(path))
-                return null;
-
-            NfoMovie? nfo;
-
-            try
-            {
-                var serializer = new XmlSerializer(typeof(NfoMovie));
-
-                using var stream = new FileStream(
-                    path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite // 🔥 important for cloud/downloads
-                );
-
-                nfo = (NfoMovie?)serializer.Deserialize(stream);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "❌ Failed to deserialize NFO: {Path}", path);
-                return null;
-            }
-
-            if (nfo == null)
-                return null;
-
-            // 🔥 Safe parsing helpers
-            DateTime? ParseDate(string? s)
-                => DateTime.TryParse(s, out var d) ? d : null;
-
-            int? ParseInt(string? s)
-                => int.TryParse(s, out var i) ? i : null;
-
-            var movie = new Movie
-            {
-                Id = nfo.UniqueId?.Value,
-                
-                Title = nfo.Title ?? "",
-                OriginalTitle = string.IsNullOrWhiteSpace(nfo.OriginalTitle) ? null : nfo.OriginalTitle,
-                Premiered = ParseDate(nfo.Premiered),
-                Year = ParseInt(nfo.Year),
-                Runtime = ParseInt(nfo.Runtime),
-                Director = nfo.Director,
-                Studio = nfo.Studio,
-                Label = nfo.Label,
-                Plot = nfo.Plot,
-                DateAdded = ParseDate(nfo.DateAdded) ?? DateTime.Now,
-                MovieGenres = new(),
-                MovieActresses = new()
-            };
-            movie.NormalizedId = _movieIdService.GenerateNormalizedID(movie.Id);
-            // 🎭 Actresses (DEDUPED)
-            if (nfo.Actors != null)
-            {
-                var distinctActors = nfo.Actors
-                    .Where(a => !string.IsNullOrWhiteSpace(a.Name))
-                    .GroupBy(a => Normalize(a.Name)) 
-                    .Select(g => g.First());         
-
-                foreach (var actor in distinctActors)
-                {
-                    movie.MovieActresses.Add(new MovieActress
-                    {
-                        Actress = new Actress { Name = actor.Name },
-                        Order = actor.Order ?? 0
-                    });
-                }
-            }
-            // 🏷️ Genres
-            if (nfo.Genres != null)
-            {
-                var distinct = nfo.Genres
-                    .Where(g => !string.IsNullOrWhiteSpace(g))
-                    .Select(g => g!.Trim())
-                    .GroupBy(g => Normalize(g))
-                    .Select(g => g.First());
-
-                foreach (var g in distinct)
-                {
-                    movie.MovieGenres.Add(new MovieGenre
-                    {
-                        Genre = new Genre { Name = g }
-                    });
-                }
-            }
-
-            return movie;
-        }
-
-        private string ComputeMetadataHash(string path)
-        {
-            var fi = new FileInfo(path);
-            return $"{fi.Length}_{fi.LastWriteTimeUtc.Ticks}";
-        }
+             
 
         private string Normalize(string s)
             => s.Trim().ToLowerInvariant();
