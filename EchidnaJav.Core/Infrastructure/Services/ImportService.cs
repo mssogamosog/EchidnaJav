@@ -118,7 +118,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                             if (exists)
                             {
-                                _logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
+                                //_logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
                                 Report("Skipped (Exists)", movie.Id);
                                 continue;
                             }
@@ -138,7 +138,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                             // 🔥 Thread-safe increment
                             Report("Imported", dbMovie.Id);
 
-                            _logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
+                            //_logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
                         }
                         catch (OperationCanceledException)
                         {
@@ -229,9 +229,5 @@ namespace EchidnaJav.Core.Infrastructure.Services
         }
         
 
-             
-
-        private string Normalize(string s)
-            => s.Trim().ToLowerInvariant();
     }
 }

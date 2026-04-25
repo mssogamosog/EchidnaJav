@@ -46,6 +46,7 @@ namespace EchidnaJav
             builder.Services.AddScoped<INavigationStateService, NavigationStateService>();
             builder.Services.AddScoped<ILocalMediaScanner, LocalMediaScanner>();
             builder.Services.AddScoped<INfoParserService, NfoParserService>();
+            builder.Services.AddScoped<IPlaybackService, PlaybackService>();
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
                 var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");

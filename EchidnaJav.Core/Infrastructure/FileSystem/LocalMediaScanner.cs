@@ -1,4 +1,5 @@
-﻿using EchidnaJav.Core.Infrastructure.Services;
+﻿using EchidnaJav.Core.Domain.Constants;
+using EchidnaJav.Core.Infrastructure.Services;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -24,8 +25,8 @@ namespace EchidnaJav.Core.Infrastructure.FileSystem
         public async Task<Dictionary<string, List<string>>> GroupFilesByMovieAsync(string rootPath)
         {
             var allFiles = Directory.GetFiles(rootPath, "*.*", SearchOption.AllDirectories);
-            var groups = new ConcurrentDictionary<string, ConcurrentBag<string>>();
-
+            var groups = new ConcurrentDictionary<string, ConcurrentBag<string>>();            
+            
             await Parallel.ForEachAsync(allFiles, (file, _) =>
             {
                 var id = _movieIdService.ParseMovieID(file);
@@ -39,7 +40,9 @@ namespace EchidnaJav.Core.Infrastructure.FileSystem
                 return ValueTask.CompletedTask;
             });
 
-            return groups.ToDictionary(k => k.Key, v => v.Value.ToList());
+            return groups
+                .Where(g => g.Value.Any(f => MediaConstants.VideoExtensions.Contains(Path.GetExtension(f))))
+                .ToDictionary(k => k.Key, v => v.Value.ToList());
         }
 
         public string ComputeMetadataHash(string path)

@@ -5,6 +5,7 @@
 @inject IMovieRepositoryService Repo
 @inject IImageService ImageService
 @inject IJSRuntime JS
+@inject IPlaybackService PlaybackService
 
 <div class="movie-page-container">
 
@@ -21,7 +22,7 @@
         <div class="media-controls-overlay">
             @if (movie?.Files?.Any() == true)
             {
-                <button class="btn-play">▶ Play</button>
+                <button class="btn-play-main" @onclick="() => PlaybackService.PlayAllAsync(movie.Id, movie.Files)">▶ Play</button>
             }
         </div>
     </div>
@@ -93,7 +94,12 @@
                 <h5>Available Files</h5>
                 @foreach (var file in movie?.Files ?? Enumerable.Empty<FileDto>())
                 {
-                    <div class="file-item">🎬 @file.FileName</div>
+                    <div class="file-item">
+                        <span class="file-name" title="@file.FileName">🎬 @file.FileName</span>
+                        <button class="file-play-btn" @onclick="() => PlaybackService.PlayFile(file.FilePath)">
+                            ▶ Play
+                        </button>
+                    </div>
                 }
             </div>
 

@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using EchidnaJav.Core.Domain.DTOs; 
+using EchidnaJav.Core.Domain.DTOs;
 
 namespace EchidnaJav.Core.Domain.States
 {
     public class SearchState
     {
         public string SearchText { get; private set; } = string.Empty;
+        public SortMoviesBy CurrentSort { get; private set; } = SortMoviesBy.RecentlyAdded;
+
         public event Action? OnSearchChanged;
         public List<MovieDto> CachedMovies { get; set; } = new();
         public bool HasMoreCached { get; set; } = true;
@@ -17,13 +19,28 @@ namespace EchidnaJav.Core.Domain.States
             if (SearchText != text)
             {
                 SearchText = text;
-                CachedMovies.Clear();
-                HasMoreCached = true;
-                ScrollPosition = 0;
-
+                ResetNavigation();
                 OnSearchChanged?.Invoke();
             }
         }
+
+        public void SetSort(SortMoviesBy sort)
+        {
+            if (CurrentSort != sort)
+            {
+                CurrentSort = sort;
+                ResetNavigation();
+                OnSearchChanged?.Invoke();
+            }
+        }
+
+        private void ResetNavigation()
+        {
+            CachedMovies.Clear();
+            HasMoreCached = true;
+            ScrollPosition = 0;
+        }
+
         public string? GetPreviousMovieId(string currentMovieId)
         {
             var index = CachedMovies.FindIndex(m => m.Id == currentMovieId);

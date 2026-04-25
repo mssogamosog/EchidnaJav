@@ -1,4 +1,5 @@
-﻿@using EchidnaJav.Core.Domain.States
+﻿@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
 @inherits LayoutComponentBase
 @inject UIState UI
@@ -46,9 +47,26 @@
 
                 <div class="toolbar">
                     <div class="filters-left">
-                        <button>Genre</button>
-                        <button>Actress</button>
-                        <button>Sort</button>
+        
+                        <select class="toolbar-select" disabled>
+                            <option>All Genres</option>
+                        </select>
+
+                        <select class="toolbar-select" disabled>
+                            <option>All Actresses</option>
+                        </select>
+
+                        <div class="sort-container">
+                            <span class="sort-label">Sort by:</span>
+                            <select class="toolbar-select"
+                                    value="@SearchState.CurrentSort"
+                                    @onchange="HandleSortChange">
+                                @foreach (SortMoviesBy sortOption in Enum.GetValues(typeof(SortMoviesBy)))
+                                {
+                                    <option value="@sortOption">@GetSortName(sortOption)</option>
+                                }
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -169,13 +187,10 @@
 
     protected override void OnInitialized()
     {
-        // Listen for navigation changes to update button disabled states
         NavState.StateChanged += StateHasChanged;
         
-        // Listen for URL changes to correctly toggle the IsMoviePage UI elements
         NavManager.LocationChanged += OnLocationChanged;
 
-        // Initialize the debounce timer for live search
         _debounceTimer = new System.Timers.Timer(400);
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += PerformSearch;
@@ -183,26 +198,44 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        // Force a re-render when navigating so the slider/movie controls appear/disappear
+      
         InvokeAsync(StateHasChanged);
     }
 
     private void HandleSearchInput(ChangeEventArgs e)
     {
         _searchInput = e.Value?.ToString() ?? string.Empty;
-
-        // Stop and restart the timer on every keystroke
         _debounceTimer?.Stop();
         _debounceTimer?.Start();
     }
+    private void HandleSortChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<SortMoviesBy>(e.Value?.ToString(), out var newSort))
+        {
+            SearchState.SetSort(newSort);
 
+            if (IsMoviePage)
+            {
+                NavManager.NavigateTo("/");
+            }
+        }
+    }
+
+    private string GetSortName(SortMoviesBy sort) => sort switch
+    {
+        SortMoviesBy.ID => "Movie ID",
+        SortMoviesBy.RecentlyAdded => "Recently Added",
+        SortMoviesBy.DateNewest => "Release Date (Newest)",
+        SortMoviesBy.DateOldest => "Release Date (Oldest)",        
+        SortMoviesBy.ActressName => "Actress Name (A-Z)",        
+        _ => sort.ToString()
+    };
     private void PerformSearch(object? sender, System.Timers.ElapsedEventArgs e)
     {
         InvokeAsync(() =>
         {
             SearchState.SetSearchText(_searchInput);
 
-            // If we aren't on the Home page, navigate there to see the results
             if (NavManager.ToBaseRelativePath(NavManager.Uri) != "")
             {
                 NavManager.NavigateTo("/");

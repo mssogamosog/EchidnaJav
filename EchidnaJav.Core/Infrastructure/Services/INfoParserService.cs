@@ -27,7 +27,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         // 📄 Parse NFO (NO DB access)
         public async Task<Movie?> ParseNfoAsync(string path)
         {
-            _logger.LogInformation("Reading NFO: {Path} (Exists: {Exists})", path, File.Exists(path));
+            //_logger.LogInformation("Reading NFO: {Path} (Exists: {Exists})", path, File.Exists(path));
 
             if (!File.Exists(path))
                 return null;
@@ -56,13 +56,10 @@ namespace EchidnaJav.Core.Infrastructure.Services
             if (nfo == null)
                 return null;
 
-            // 🔥 Safe parsing helpers
-            DateTime? ParseDate(string? s)
-                => DateTime.TryParse(s, out var d) ? d : null;
-
+            
             int? ParseInt(string? s)
                 => int.TryParse(s, out var i) ? i : null;
-
+            //_logger.LogInformation("Parsed Date: {DateAdded} , Nfo Value : {NfoValue} Movie Id : {Id}", ParseDate(nfo.DateAdded), nfo.DateAdded, nfo.UniqueId?.Value);
             var movie = new Movie
             {
                 Id = nfo.UniqueId?.Value,
@@ -117,6 +114,34 @@ namespace EchidnaJav.Core.Infrastructure.Services
             }
 
             return movie;
+        }
+        private DateTime? ParseDate(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return null;
+
+            // 🔥 THE FIX: Uppercase the string to ensure "PM" matches "TT"
+            // and trim to remove any invisible whitespace.
+            string cleaned = s.Trim().ToUpperInvariant();
+
+            // Define the specific patterns found in your NFOs
+            string[] formats = {
+                "yyyy-MM-dd:htt",   // Handles 1PM
+                "yyyy-MM-dd:hhtt",  // Handles 12PM
+                "yyyy-MM-dd:h:mmtt",
+                "yyyy-MM-dd",
+                "yyyy-MM-dd HH:mm:ss"
+            };
+
+            // Use AllowWhiteSpaces to be extra safe with the NFO formatting
+            if (DateTime.TryParseExact(cleaned, formats,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var d))
+            {
+                return d;
+            }
+
+            // Final loose fallback
+            return DateTime.TryParse(s, out var fallback) ? fallback : null;
         }
         private string Normalize(string s) => s.Trim().ToLowerInvariant();
     }

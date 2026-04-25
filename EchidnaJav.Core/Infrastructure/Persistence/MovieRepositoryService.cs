@@ -1,4 +1,5 @@
-﻿using EchidnaJav.Core.Domain.DTOs;
+﻿using EchidnaJav.Core.Domain.Constants;
+using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -76,32 +77,41 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                         );
                     }
                 }
-            }          
+            }
 
-            
+
             query = query.Where(m => m.Files.Any(f =>
-                f.FileName.EndsWith(".mp4") ||
-                f.FileName.EndsWith(".mkv") ||
-                f.FileName.EndsWith(".avi") ||
-                f.FileName.EndsWith(".wmv") ||
-                f.FileName.EndsWith(".ts") ||
-                f.FileName.EndsWith(".iso")
-            ));
+         MediaConstants.VideoExtensions.Any(ext => EF.Functions.Like(f.FileName, "%" + ext))));
 
             if (queryParams.MissingImageOnly)
             {
                 query = query.Where(m => string.IsNullOrEmpty(m.PrimaryImagePath));
             }
-            // 6. Apply Sorting
+
+            // 6. 🔥 THE FIXED SORTING
             query = queryParams.SortBy switch
             {
                 SortMoviesBy.DateNewest => query.OrderByDescending(m => m.Premiered).ThenBy(m => m.Title),
                 SortMoviesBy.DateOldest => query.OrderBy(m => m.Premiered).ThenBy(m => m.Title),
-                SortMoviesBy.ActressName => query.OrderBy(m => m.MovieActresses.FirstOrDefault().Actress.Name),
+
+                // Recently Added usually means the date the record hit your DB
                 SortMoviesBy.RecentlyAdded => query.OrderByDescending(m => m.DateAdded),
+
+                // Sorting by ID (Normalized)
                 SortMoviesBy.ID => query.OrderBy(m => m.NormalizedId),
-                SortMoviesBy.Random => query.OrderBy(m => Guid.NewGuid()), // EF Core standard for random sorting
-                _ => query.OrderBy(m => m.Title) // Default fallback
+
+                // Sorting by the first actress name
+                SortMoviesBy.ActressName => query.OrderByDescending(m => m.MovieActresses.Any()).ThenBy(m => m.MovieActresses
+                .OrderBy(ma => ma.Order)
+                .Select(ma => ma.Actress.Name)
+                .FirstOrDefault())
+                .ThenBy(m => m.Title),
+
+                // 🔥 SQLite specific Random
+                SortMoviesBy.Random => query.OrderBy(m => EF.Functions.Random()),
+
+                // Default: Title
+                _ => query.OrderBy(m => m.Title)
             };
 
             // 7. Project and Paginate
@@ -123,7 +133,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         {
             using var db = _dbFactory.CreateDbContext();
 
-            return await db.Movies
+            // 1. Fetch from DB
+            var movie = await db.Movies
                 .AsNoTracking()
                 .Where(m => m.Id == id)
                 .Select(m => new MovieDetailsDto
@@ -131,7 +142,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     Id = m.Id,
                     Title = m.Title,
                     ImagePath = m.PrimaryImagePath,
-
                     Premiered = m.Premiered,
                     Runtime = m.Runtime,
                     Studio = m.Studio,
@@ -145,14 +155,21 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     Genres = m.MovieGenres
                         .Select(g => g.Genre.Name)
                         .ToList(),
-
-                    Files = m.Files.Select(f => new FileDto
+                    Files = m.Files.OrderBy(f => f.FileName).Select(f => new FileDto
                     {
-                        FileName = f.FileName
+                        FileName = f.FileName,
+                        FilePath = f.FilePath
                     })
                     .ToList()
                 })
                 .FirstOrDefaultAsync();
+
+            // 2. Filter the videos in-memory using the single source of truth
+            movie?.Files = movie.Files
+                    .Where(f => MediaConstants.VideoExtensions.Contains(Path.GetExtension(f.FileName)))
+                    .ToList();
+
+            return movie;
         }
     }
 }
