@@ -4,6 +4,7 @@
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IMovieRepositoryService Repo
 @inject IImageService ImageService
+@inject IJSRuntime JS
 
 <div class="movie-page-container">
 
@@ -107,15 +108,36 @@
     private MovieDetailsDto? movie;
     private string? fullImage;
     private string? posterImage;
+    private bool _shouldScrollToTop = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        // 1. Clear old state to prevent UI ghosting/flicker
+        _shouldScrollToTop = true;
+        movie = null;
+        fullImage = null;
+        posterImage = null;
+
+        // 2. Fetch new data
         movie = await Repo.GetMovieDetailsAsync(Id);
 
         if (movie != null)
         {
             fullImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Full);
             posterImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Cover);
+        }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // 2. Fire the Javascript scroll reset right after the DOM updates
+        if (_shouldScrollToTop)
+        {
+            _shouldScrollToTop = false;
+            try
+            {
+                await JS.InvokeVoidAsync("setScrollPos", 0);
+            }
+            catch { /* Ignore if JS isn't ready yet */ }
         }
     }
 }

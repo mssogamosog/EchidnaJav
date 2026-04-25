@@ -99,7 +99,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 SortMoviesBy.DateOldest => query.OrderBy(m => m.Premiered).ThenBy(m => m.Title),
                 SortMoviesBy.ActressName => query.OrderBy(m => m.MovieActresses.FirstOrDefault().Actress.Name),
                 SortMoviesBy.RecentlyAdded => query.OrderByDescending(m => m.DateAdded),
-                SortMoviesBy.ID => query.OrderBy(m => m.Id),
+                SortMoviesBy.ID => query.OrderBy(m => m.NormalizedId),
                 SortMoviesBy.Random => query.OrderBy(m => Guid.NewGuid()), // EF Core standard for random sorting
                 _ => query.OrderBy(m => m.Title) // Default fallback
             };

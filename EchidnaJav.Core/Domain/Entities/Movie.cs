@@ -9,6 +9,7 @@ namespace EchidnaJav.Core.Domain.Entities
     {
         [Key]
         public string Id { get; set; } // START-296
+        public string NormalizedId { get; set; }
         public string Title { get; set; }
         public string? OriginalTitle { get; set; }
         public DateTime? Premiered { get; set; }

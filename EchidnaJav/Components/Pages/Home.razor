@@ -82,22 +82,27 @@ else if (Movies.Any())
     {
         if (firstRender)
         {
-            await LoadMore();
+            // 🔥 2. If we loaded from cache, restore scroll. Otherwise, load fresh.
+            if (Movies.Any())
+            {
+                if (SearchState.ScrollPosition > 0)
+                {
+                    await JS.InvokeVoidAsync("setScrollPos", SearchState.ScrollPosition);
+                }
+            }
+            else
+            {
+                await LoadMore();
+            }
         }
-        
+
+        // Set up the infinite scroll observer (moved outside firstRender for search resilience)
         if (hasMore && !_observerRegistered)
         {
             _observerRegistered = true;
-            _dotnetRef ??= DotNetObjectReference.Create(this); // Use ??= to reuse the reference if it exists
-            
-            try
-            {
-                await JS.InvokeVoidAsync("infiniteScroll.observe", _triggerElement, _dotnetRef);
-            }
-            catch
-            {
-                _observerRegistered = false; // Fallback if JS isn't ready
-            }
+            _dotnetRef ??= DotNetObjectReference.Create(this);
+            try { await JS.InvokeVoidAsync("infiniteScroll.observe", _triggerElement, _dotnetRef); }
+            catch { _observerRegistered = false; }
         }
     }
 
@@ -146,7 +151,8 @@ else if (Movies.Any())
                 Skip = Movies.Count,
                 Take = dynamicPageSize,
                 SortBy = SortMoviesBy.ID // Or whatever default you want
-            };
+            };           
+            
             
             var result = await MovieRepo.GetMoviesAsync(queryParams);
 
@@ -154,15 +160,19 @@ else if (Movies.Any())
             {
                 Movies.AddRange(result);
 
-                // If the DB returned fewer items than we calculated, we hit the end
                 if (result.Count() < dynamicPageSize)
                 {
                     hasMore = false;
                 }
+
+                // 🔥 3. Save the new list to the cache
+                SearchState.CachedMovies = new List<MovieDto>(Movies);
+                SearchState.HasMoreCached = hasMore;
             }
             else
             {
                 hasMore = false;
+                SearchState.HasMoreCached = false;
             }
         }
         finally
@@ -180,14 +190,17 @@ else if (Movies.Any())
     public async ValueTask DisposeAsync()
     {
         UI.OnChange -= Refresh;
+        SearchState.OnSearchChanged -= HandleSearchChanged;        
+        try
+        {
+            SearchState.ScrollPosition = await JS.InvokeAsync<double>("getScrollPos");
+        }
+        catch { /* Ignore if JS interop is already disconnected */ }
 
         if (_dotnetRef != null)
         {
-            try
-            {
-                await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement);
-            }
-            catch { /* ignore */ }
+            try { await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement); }
+            catch { }
             
             _dotnetRef.Dispose();
         }

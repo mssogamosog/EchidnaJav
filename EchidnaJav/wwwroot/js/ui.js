@@ -89,3 +89,19 @@ window.setScrollPos = function (pos) {
     const el = document.querySelector('.content-area');
     if (el) el.scrollTop = pos;
 };
+window.registerGlobalKeyHandler = function (dotNetHelper) {
+    document.addEventListener('keydown', function (e) {
+        // 1. Ignore keystrokes if the user is typing in an input box or textarea
+        const targetTag = e.target.tagName.toLowerCase();
+        if (targetTag === 'input' || targetTag === 'textarea') {
+            return;
+        }
+
+        // 2. Check for Left/Right arrows and notify Blazor
+        if (e.key === 'ArrowLeft') {
+            dotNetHelper.invokeMethodAsync('OnGlobalArrowLeft');
+        } else if (e.key === 'ArrowRight') {
+            dotNetHelper.invokeMethodAsync('OnGlobalArrowRight');
+        }
+    });
+};

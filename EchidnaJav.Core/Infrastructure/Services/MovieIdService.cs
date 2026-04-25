@@ -7,9 +7,10 @@ namespace EchidnaJav.Core.Infrastructure.Services
 {
     public interface IMovieIdService
     {
-        abstract bool MovieIDEquals(string movieID1, string movieID2);
-        abstract int ParseInitialDigits(string s, int errVal = -1);
-        abstract string ParseMovieID(string fileName);
+        string GenerateNormalizedID(string originalId);
+        bool MovieIDEquals(string movieID1, string movieID2);
+        int ParseInitialDigits(string s, int errVal = -1);
+        string ParseMovieID(string fileName);
     }
 
     public class MovieIdService : IMovieIdService
@@ -39,44 +40,43 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 m => $"T{m.Groups[1].Value}8-{m.Groups[2].Value}"
             )
         };
-
         private static readonly List<IdRule> StandardRules = new List<IdRule>
         {
             // 13dsvr01744pl → DSVR-1744
             new IdRule(
-                new Regex(@"\b\d{1,4}([A-Z]{2,7})0*([0-9]{3,5})[A-Z]{0,3}\b",
+                new Regex(@"(?<![A-Za-z0-9])\d{1,4}([A-Z]{2,7})0*([0-9]{3,5})[A-Z]{0,3}(?![A-Za-z0-9])",
                     RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => $"{m.Groups[1].Value.ToUpper()}-{int.Parse(m.Groups[2].Value)}"
             ),
+            
             // DMM (ABC00123 -> ABC-123)
-            new IdRule(new Regex(@"([A-Z]{2,7})0{2}([0-9]{2,5})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})0{2}([0-9]{2,5})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Numeric Prefix (804CMP-001 -> CMP-001)
-            new IdRule(new Regex(@"\b[0-9]{1,4}([A-Z]{2,7})[-_ ]([0-9]{2,5})\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])[0-9]{1,4}([A-Z]{2,7})[-_ ]([0-9]{2,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Mixed Alphanumeric (ABC12-123A -> ABC12-123)
-            // FIX: Replaced trailing \b with (?=[^0-9A-Za-z]|$) to handle underscores like _4K
-            new IdRule(new Regex(@"\b([A-Z]{2,7}[0-9]{0,2})[-_ ]([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7}[0-9]{0,2})[-_ ]([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}{2}",
                     m.Groups[1].Value.ToUpper(),
                     m.Groups[2].Value,
                     (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
         
             // Basic / Compact (MDVR-129A -> MDVR-129)
-            // FIX: Replaced trailing \b with (?=[^0-9A-Za-z]|$)
-            // This allows matches where the ID is followed by "_" (e.g. SDNM-522_4K)
-            new IdRule(new Regex(@"\b([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}{2}",
                     m.Groups[1].Value.ToUpper(),
                     m.Groups[2].Value,
                     (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
         
             // Single Letter (A-123)
-            new IdRule(new Regex(@"\b([A-Z])(?:[-_ ]?)([0-9]{3,5})(?=[^0-9]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z])(?:[-_ ]?)([0-9]{3,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value))
         };
+
+
 
         // 3. Compile the bracket regex once as well
         private static readonly Regex BracketRegex = new Regex(@"\[(.*?)\]", RegexOptions.Compiled);
@@ -129,6 +129,21 @@ namespace EchidnaJav.Core.Infrastructure.Services
             if (num1 == num2 && num1 != -1)
                 return true;
             return false;
+        }
+        public string GenerateNormalizedID(string originalId)
+        {
+            if (string.IsNullOrWhiteSpace(originalId)) 
+                return string.Empty;
+
+            var parts = originalId.Split('-');
+            if (parts.Length == 2)
+            {
+                string prefix = parts[0];
+                string numberPart = parts[1];
+                return $"{prefix}-{numberPart.PadLeft(5, '0')}";
+            }
+
+            return originalId; 
         }
         public int ParseInitialDigits(string s, int errVal = -1)
         {

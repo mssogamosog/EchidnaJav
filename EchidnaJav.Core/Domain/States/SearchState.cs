@@ -24,5 +24,22 @@ namespace EchidnaJav.Core.Domain.States
                 OnSearchChanged?.Invoke();
             }
         }
+        public string? GetPreviousMovieId(string currentMovieId)
+        {
+            var index = CachedMovies.FindIndex(m => m.Id == currentMovieId);
+            if (index > 0)
+                return CachedMovies[index - 1].Id;
+
+            return null;
+        }
+
+        public string? GetNextMovieId(string currentMovieId)
+        {
+            var index = CachedMovies.FindIndex(m => m.Id == currentMovieId);
+            if (index >= 0 && index < CachedMovies.Count - 1)
+                return CachedMovies[index + 1].Id;
+
+            return null;
+        }
     }
 }

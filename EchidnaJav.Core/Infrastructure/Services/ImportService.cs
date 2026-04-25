@@ -45,198 +45,197 @@ namespace EchidnaJav.Core.Infrastructure.Services
         {
             var groups = await GroupFilesByMovieAsync(rootPath);
 
+            int total = groups.Count;
+            int processed = 0; // Shared counter
+
             var channel = Channel.CreateBounded<Movie>(new BoundedChannelOptions(100)
             {
                 FullMode = BoundedChannelFullMode.Wait
             });
+
             // 🔥 IMAGE PIPELINE
             var imageChannel = Channel.CreateUnbounded<string>();
             var imageWriter = imageChannel.Writer;
             var imageReader = imageChannel.Reader;
 
-            
-            var writer = channel.Writer;
-            var reader = channel.Reader;
-            // 🔥 start image workers 
+            // 🔥 Start image workers (Added cancellation token to ReadAllAsync)
             var imageWorkers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
             {
-                await foreach (var path in imageReader.ReadAllAsync())
+                try
                 {
-                    try
+                    await foreach (var path in imageReader.ReadAllAsync(ct))
                     {
-                        await _imageService.GenerateImagesAsync(path);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "❌ Image generation failed: {Path}", path);
+                        try
+                        {
+                            await _imageService.GenerateImagesAsync(path);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "❌ Image generation failed: {Path}", path);
+                        }
                     }
                 }
+                catch (OperationCanceledException) { /* Graceful exit on cancel */ }
             })).ToList();
+
             // 🧵 Consumer (DB writer)
             var consumerTask = Task.Run(async () =>
             {
-                var total = groups.Count;
-                int processed = 0;
-                await foreach (var movie in reader.ReadAllAsync(ct))
+                try
                 {
-                    ct.ThrowIfCancellationRequested();
-                    try
+                    using var db = _dbFactory.CreateDbContext();
+                    var genreCache = await db.Genres.ToDictionaryAsync(g => g.Name.ToLower(), ct);
+                    var actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                    await foreach (var movie in channel.Reader.ReadAllAsync(ct))
                     {
-                        using var db = _dbFactory.CreateDbContext();
+                        try
+                        {                          
 
-                        // 🔹 Load caches per context
-                        var genreCache = await db.Genres
-                            .ToDictionaryAsync(g => g.Name.ToLower(), ct);
+                            var exists = await db.Movies.AnyAsync(m => m.Id == movie.Id, ct);
 
-                        var actressCache = await db.Actresses
-                            .ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                            if (exists)
+                            {
+                                _logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
 
-                        var exists = await db.Movies
-                            .AnyAsync(m => m.Id == movie.Id, ct);
+                                // 🔥 Thread-safe increment
+                                var currentProcessed = Interlocked.Increment(ref processed);
+                                progress?.Report(new ImportProgress
+                                {
+                                    Processed = currentProcessed,
+                                    Total = total,
+                                    CurrentMovieId = movie.Id,
+                                    Status = "Skipped"
+                                });
+                                continue;
+                            }
 
-                        if (exists)
-                        {
-                            _logger.LogInformation($"⏩ Skipped (exists): {movie.Id}");
-                            processed++;
+                            var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
+                            var bestImage = _imageService.GetBestImage(movie);
+                            dbMovie.PrimaryImagePath = bestImage;
+
+                            db.Movies.Add(dbMovie);
+                            await db.SaveChangesAsync(ct);
+
+                            if (bestImage != null && _queuedImages.TryAdd(bestImage, true))
+                            {
+                                await imageWriter.WriteAsync(bestImage, ct);
+                            }
+
+                            // 🔥 Thread-safe increment
+                            var curProcessed = Interlocked.Increment(ref processed);
                             progress?.Report(new ImportProgress
                             {
-                                Processed = processed,
+                                Processed = curProcessed,
                                 Total = total,
-                                CurrentMovieId = movie.Id,
-                                Status = "Skipped"
+                                CurrentMovieId = dbMovie.Id,
+                                Status = "Imported"
                             });
-                            continue;
+
+                            _logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
                         }
-
-                        var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
-                        var bestImage = _imageService.GetBestImage(movie);
-                        dbMovie.PrimaryImagePath = bestImage;
-
-                        db.Movies.Add(dbMovie);
-                        /*
-                        foreach (var e in db.ChangeTracker.Entries())
+                        catch (OperationCanceledException)
                         {
-                            Console.WriteLine($"{e.Entity.GetType().Name} - {e.State}");
+                            throw; // Let the outer block catch the cancellation
                         }
-                        */
-                        ct.ThrowIfCancellationRequested();
-                        await db.SaveChangesAsync(ct);
-
-                        processed++;
-
-                        
-
-                        if (bestImage != null && _queuedImages.TryAdd(bestImage, true))
+                        catch (Exception ex)
                         {
-                            await imageWriter.WriteAsync(bestImage, ct);
+                            var curProcessed = Interlocked.Increment(ref processed);
+                            progress?.Report(new ImportProgress
+                            {
+                                Processed = curProcessed,
+                                Total = total,
+                                CurrentMovieId = movie?.Id,
+                                Status = "Failed"
+                            });
+                            _logger.LogError(ex, $"❌ Failed saving movie {movie?.Id}");
                         }
+                    }
+                }
+                catch (OperationCanceledException) { /* Graceful exit */ }
+            });
 
-                        progress?.Report(new ImportProgress
+            // 🧵 Producers (parallel)
+            try
+            {
+                await Parallel.ForEachAsync(groups, new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Environment.ProcessorCount,
+                    CancellationToken = ct
+                },
+                async (group, token) =>
+                {
+                    try
+                    {
+                        var movieId = group.Key;
+                        var files = group.Value;
+
+                        var nfoFile = files.FirstOrDefault(f => f.EndsWith(".nfo", StringComparison.OrdinalIgnoreCase));
+
+                        if (nfoFile != null)
                         {
-                            Processed = processed,
-                            Total = total,
-                            CurrentMovieId = dbMovie.Id,
-                            Status = "Imported"
-                        });
+                            // Passing movieId as fallback to prevent null IDs!
+                            var movie = await ParseNfoAsync_NoDb(nfoFile);
 
-                        _logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
+                            if (movie != null)
+                            {
+                                movie.Files = files.Select(file =>
+                                {
+                                    var fi = new FileInfo(file);
+                                    return new FileEntry
+                                    {
+                                        MovieId = movie.Id,
+                                        FilePath = file,
+                                        FileName = fi.Name,
+                                        SizeBytes = fi.Length,
+                                        LastModified = fi.LastWriteTime,
+                                        Hash = ComputeMetadataHash(file),
+                                        IsScanned = true
+                                    };
+                                }).ToList();
+
+                                await channel.Writer.WriteAsync(movie, token);
+                            }
+                        }
+                        else
+                        {
+                            // 🔥 THE FIX FOR THE 70% FREEZE: 
+                            // If there is no NFO, we MUST count it as processed so the math adds up!
+                            var curProcessed = Interlocked.Increment(ref processed);
+                            progress?.Report(new ImportProgress
+                            {
+                                Processed = curProcessed,
+                                Total = total,
+                                CurrentMovieId = movieId,
+                                Status = "Skipped (No NFO)"
+                            });
+                        }
                     }
                     catch (OperationCanceledException)
                     {
-                        _logger.LogInformation($"⏹️ Cancelled: {movie?.Id}");
+                        throw; // Handled by Parallel.ForEachAsync
                     }
                     catch (Exception ex)
                     {
-                        processed++;
-
-                        progress?.Report(new ImportProgress
-                        {
-                            Processed = processed,
-                            Total = total,
-                            CurrentMovieId = movie?.Id,
-                            Status = "Failed"
-                        });
-                        _logger.LogInformation($"❌ Failed saving movie {movie?.Id} {movie?.Files?.FirstOrDefault()?.FilePath}");
-                        _logger.LogError(ex.ToString());
+                        var curProcessed = Interlocked.Increment(ref processed);
+                        progress?.Report(new ImportProgress { Processed = curProcessed, Total = total, CurrentMovieId = group.Key, Status = "Failed" });
+                        _logger.LogError(ex, "❌ Failed processing group {MovieId}", group.Key);
                     }
-                }
-            }, ct);
-            
-
-            // 🧵 Producers (parallel)
-            await Parallel.ForEachAsync(groups, new ParallelOptions
+                });
+            }
+            catch (OperationCanceledException)
             {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
-                CancellationToken = ct
-            },
-            async (group, token) =>
+                _logger.LogInformation("⏹️ Import cancelled by user.");
+            }
+            finally
             {
-                token.ThrowIfCancellationRequested();
-                try
-                {
-                    var movieId = group.Key;
-                    var files = group.Value;
+               
+                channel.Writer.TryComplete();
+                await consumerTask;
 
-                    var nfoFile = files.FirstOrDefault(f =>
-                        f.EndsWith(".nfo", StringComparison.OrdinalIgnoreCase));
-
-                    Movie movie;
-
-                    if (nfoFile != null)
-                    {
-                        movie = await ParseNfoAsync_NoDb(nfoFile);
-                        movie?.Files = files.Select(file =>
-                        {
-                            var fi = new FileInfo(file);
-
-                            return new FileEntry
-                            {
-                                MovieId = movie.Id,
-                                FilePath = file,
-                                FileName = fi.Name,
-                                SizeBytes = fi.Length,
-                                LastModified = fi.LastWriteTime,
-                                Hash = ComputeMetadataHash(file),
-                                IsScanned = true
-                            };
-                        }).ToList();
-                        if (token.IsCancellationRequested)
-                            return;
-                        await writer.WriteAsync(movie, token);
-                    }
-                    else
-                    {
-                        // scrape path TODO
-                        //movie = new Movie
-                        //{
-                        //    Id = movieId,
-                        //    Title = movieId,
-                        //    DateAdded = DateTime.Now,
-                        //    MovieGenres = new(),
-                        //    MovieActresses = new()
-                        //};
-                    }
-
-                    
-                }
-                catch (OperationCanceledException)
-                {
-                    writer.TryComplete();
-                    _logger.LogInformation("⏹️ Import cancelled during processing");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "❌ Failed processing group {MovieId}", group.Key);
-                }
-            });
-
-            writer.Complete();
-            await consumerTask;
-            // finish image pipeline
-            imageWriter.Complete();
-            await Task.WhenAll(imageWorkers);
+                imageWriter.TryComplete();
+                await Task.WhenAll(imageWorkers); 
+            }
         }
-
         // 📦 Group files (parallel)
         public async Task<Dictionary<string, List<string>>> GroupFilesByMovieAsync(string rootPath)
         {
@@ -302,6 +301,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
             var movie = new Movie
             {
                 Id = nfo.UniqueId?.Value,
+                
                 Title = nfo.Title ?? "",
                 OriginalTitle = string.IsNullOrWhiteSpace(nfo.OriginalTitle) ? null : nfo.OriginalTitle,
                 Premiered = ParseDate(nfo.Premiered),
@@ -315,7 +315,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 MovieGenres = new(),
                 MovieActresses = new()
             };
-
+            movie.NormalizedId = _movieIdService.GenerateNormalizedID(movie.Id);
             // 🎭 Actresses (DEDUPED)
             if (nfo.Actors != null)
             {

@@ -25,6 +25,7 @@ namespace EchidnaJav.Core.Infrastructure.Mappers
                 Id = source.Id,
                 Title = source.Title,
                 OriginalTitle = source.OriginalTitle,
+                NormalizedId = source.NormalizedId,
                 Premiered = source.Premiered,
                 Year = source.Year,
                 Director = source.Director,
@@ -33,7 +34,6 @@ namespace EchidnaJav.Core.Infrastructure.Mappers
                 Plot = source.Plot,
                 Runtime = source.Runtime,
                 DateAdded = source.DateAdded,
-
                 MovieGenres = new List<MovieGenre>(),
                 MovieActresses = new List<MovieActress>(),
                 Files = new List<FileEntry>()
@@ -91,7 +91,7 @@ namespace EchidnaJav.Core.Infrastructure.Mappers
                     IsScanned = f.IsScanned
                 });
             }
-
+            
             return dbMovie;
         }
 

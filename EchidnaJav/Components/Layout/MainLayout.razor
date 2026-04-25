@@ -81,14 +81,14 @@
                         @if (IsMoviePage)
                         {
                             <div class="movie-controls">
-                                <button class="movie-nav-btn" title="Previous Movie">
+                                <button class="movie-nav-btn" title="Previous Movie" disabled="@(!CanGoPrevious)" @onclick="GoToPrevious">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                         <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" />
                                     </svg>
                                     <span></span>
                                 </button>
 
-                                <button class="movie-nav-btn" title="Next Movie">
+                                <button class="movie-nav-btn" title="Next Movie" disabled="@(!CanGoNext)" @onclick="GoToNext">
                                     <span></span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                                         <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
@@ -135,7 +135,21 @@
 @code {
     private bool IsMoviePage => NavManager.ToBaseRelativePath(NavManager.Uri)
                                           .StartsWith("movie/", StringComparison.OrdinalIgnoreCase);
-                                          
+    private string? CurrentMovieId
+    {
+        get
+        {
+            var path = NavManager.ToBaseRelativePath(NavManager.Uri);
+            if (path.StartsWith("movie/", StringComparison.OrdinalIgnoreCase))
+            {
+                return Uri.UnescapeDataString(path.Substring(6)); // Strip "movie/"
+            }
+            return null;
+        }
+    }
+
+    private bool CanGoPrevious => CurrentMovieId != null && SearchState.GetPreviousMovieId(CurrentMovieId) != null;
+    private bool CanGoNext => CurrentMovieId != null && SearchState.GetNextMovieId(CurrentMovieId) != null;
     private string _searchInput = string.Empty;
     private System.Timers.Timer? _debounceTimer;
     private DotNetObjectReference<MainLayout>? objRef;
@@ -216,6 +230,7 @@
             objRef = DotNetObjectReference.Create(this);
 
             await JS.InvokeVoidAsync("registerResizeHandler", objRef);
+            await JS.InvokeVoidAsync("registerGlobalKeyHandler", objRef);
 
             var width = await JS.InvokeAsync<int>("getWindowWidth");
 
@@ -244,6 +259,27 @@
             InvokeAsync(StateHasChanged);
         }
     }
+    [JSInvokable]
+    public void OnGlobalArrowLeft()
+    {
+        // Only trigger if we are actually looking at a movie, and a previous one exists
+        if (IsMoviePage && CanGoPrevious)
+        {
+            GoToPrevious();
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public void OnGlobalArrowRight()
+    {
+        // Only trigger if we are actually looking at a movie, and a next one exists
+        if (IsMoviePage && CanGoNext)
+        {
+            GoToNext();
+            InvokeAsync(StateHasChanged);
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -256,6 +292,29 @@
         {
             _debounceTimer.Elapsed -= PerformSearch;
             _debounceTimer.Dispose();
+        }
+    }
+    private void GoToPrevious()
+    {
+        if (CurrentMovieId != null)
+        {
+            var prevId = SearchState.GetPreviousMovieId(CurrentMovieId);
+            if (prevId != null)
+            {
+                NavManager.NavigateTo($"/movie/{Uri.EscapeDataString(prevId)}", replace: true);
+            }
+        }
+    }
+
+    private void GoToNext()
+    {
+        if (CurrentMovieId != null)
+        {
+            var nextId = SearchState.GetNextMovieId(CurrentMovieId);
+            if (nextId != null)
+            {
+                NavManager.NavigateTo($"/movie/{Uri.EscapeDataString(nextId)}", replace: true);
+            }
         }
     }
 }
