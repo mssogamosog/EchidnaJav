@@ -8,12 +8,21 @@ namespace EchidnaJav.Core.Domain.States
     {
         public string SearchText { get; private set; } = string.Empty;
         public SortMoviesBy CurrentSort { get; private set; } = SortMoviesBy.RecentlyAdded;
-
+        public int DisplayedMoviesCount => CachedMovies.Count;
+        public int TotalDatabaseCount { get; private set; }
         public event Action? OnSearchChanged;
+        public event Action? OnMetadataChanged;
         public List<MovieDto> CachedMovies { get; set; } = new();
         public bool HasMoreCached { get; set; } = true;
         public double ScrollPosition { get; set; } = 0;
-
+        public void SetTotalCount(int count)
+        {
+            if (TotalDatabaseCount != count)
+            {
+                TotalDatabaseCount = count;
+                OnMetadataChanged?.Invoke();
+            }
+        }
         public void SetSearchText(string text)
         {
             if (SearchText != text)

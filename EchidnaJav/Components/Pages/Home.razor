@@ -37,6 +37,8 @@ else if (Movies.Any())
     private List<MovieDto> Movies = new();
     private ElementReference _triggerElement;
     private DotNetObjectReference<Home>? _dotnetRef;
+    private CancellationTokenSource? _cts;
+    private bool _disposed = false;
 
     private int EffectiveWidth => UI.UseWideView
         ? (int)(UI.CardWidth * 2.1)
@@ -58,8 +60,11 @@ else if (Movies.Any())
     }
     private void HandleSearchChanged()
     {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
         InvokeAsync(async () =>
         {
+            if (_disposed) return;
             if (_observerRegistered)
             {
                 try { await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement); } catch { }
@@ -109,9 +114,9 @@ else if (Movies.Any())
         }
     }
 
-    private async Task LoadMore()
+    private async Task LoadMore(CancellationToken ct = default)
     {
-        if (isLoading || !hasMore) return;
+        if (isLoading || !hasMore || _disposed || ct.IsCancellationRequested) return;
 
         isLoading = true;
         StateHasChanged();
@@ -125,7 +130,9 @@ else if (Movies.Any())
                 if (columns < 1) columns = 1;
             }
             catch { /* Fallback if JS fails */ }
+           
 
+            
             
             int remainder = Movies.Count % columns;
             int missingToFillRow = (columns - remainder) % columns;
@@ -145,7 +152,14 @@ else if (Movies.Any())
                 Take = dynamicPageSize,
                 SortBy = SearchState.CurrentSort
             };           
-            
+
+            if (Movies.Count == 0)
+            {
+                var total = await MovieRepo.GetTotalMovieCountAsync(queryParams);
+                if (ct.IsCancellationRequested) return;
+                SearchState.SetTotalCount(total);
+
+            }
             
             var result = await MovieRepo.GetMoviesAsync(queryParams);
 
@@ -190,6 +204,9 @@ else if (Movies.Any())
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
+        _cts?.Cancel();
+        _cts?.Dispose();
         UI.OnChange -= Refresh;
         SearchState.OnSearchChanged -= HandleSearchChanged;        
         try

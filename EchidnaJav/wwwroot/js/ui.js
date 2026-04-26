@@ -105,3 +105,13 @@ window.registerGlobalKeyHandler = function (dotNetHelper) {
         }
     });
 };
+
+window.getScrollInfo = (id) => {
+    const e = document.getElementById(id);
+    if (!e) return { scrollLeft: 0, scrollWidth: 0, clientWidth: 0 };
+    return {
+        scrollLeft: e.scrollLeft,
+        scrollWidth: e.scrollWidth,
+        clientWidth: e.clientWidth
+    };
+};

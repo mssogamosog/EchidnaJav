@@ -1,11 +1,15 @@
 ﻿@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.Entities
+@using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
 @inject IImageService ImageService
+@inject UIState UI
 @implements IAsyncDisposable
 
-<a href="/movie/@Movie.Id" class="movie-card" @ref="_element">
+
+<a href="/movie/@Movie.Id" class="movie-card" @ref="_element" @onmouseenter='() => UI.SetHoveredMovie(Movie.Title)'
+       @onmouseleave='() => UI.SetHoveredMovie(null)'>
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
         @if (_currentImage != null)
         {

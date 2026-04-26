@@ -146,7 +146,22 @@
             </div>
 
         </div>
+        <footer class="status-bar">
+            <div class="status-left">
+                @if (UI.SelectedMoviesCount > 0)
+                {
+                    <span>@UI.SelectedMoviesCount movie(s) selected</span>
+                }
+                else if (!string.IsNullOrEmpty(UI.HoveredMovieTitle))
+                {
+                    <span>@UI.HoveredMovieTitle</span>
+                }
+            </div>
 
+            <div class="status-right">
+                Displaying @SearchState.DisplayedMoviesCount of @SearchState.TotalDatabaseCount
+            </div>
+        </footer>
     </div>
 </div>
 
@@ -187,10 +202,11 @@
 
     protected override void OnInitialized()
     {
-        NavState.StateChanged += StateHasChanged;
-        
+        NavState.StateChanged += StateHasChanged;        
         NavManager.LocationChanged += OnLocationChanged;
-
+        SearchState.OnSearchChanged += StateHasChanged;
+        SearchState.OnMetadataChanged += StateHasChanged;
+        UI.OnChange += SafeRefresh;
         _debounceTimer = new System.Timers.Timer(400);
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += PerformSearch;
@@ -318,6 +334,9 @@
     {
         NavState.StateChanged -= StateHasChanged;
         NavManager.LocationChanged -= OnLocationChanged;
+        SearchState.OnSearchChanged -= StateHasChanged;
+        SearchState.OnMetadataChanged -= StateHasChanged;
+        UI.OnChange -= SafeRefresh;
         objRef?.Dispose();
 
         // Safely dispose of the timer
@@ -338,7 +357,14 @@
             }
         }
     }
-
+    private void SafeRefresh()
+    {
+        InvokeAsync(() =>
+        {
+            try { StateHasChanged(); }
+            catch (ObjectDisposedException) { }
+        });
+    }
     private void GoToNext()
     {
         if (CurrentMovieId != null)
