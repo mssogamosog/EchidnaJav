@@ -400,25 +400,28 @@ html, body {
 }
 
 .status-left {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: flex;
+    align-items: center; 
+    gap: 10px; 
+    flex: 1;
     min-width: 0; 
-    flex: 1; 
 }
-.status-right {
-    white-space: nowrap;
-    flex-shrink: 0; 
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums; 
-}
-  
+
 .status-left::before {
     content: "";
     width: 6px;
     height: 6px;
     background: var(--primary);
     border-radius: 50%;
-    display: inline-block;
+    flex-shrink: 0;
     box-shadow: 0 0 5px var(--primary);
+}
+
+.status-left span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1; 
+    display: block;
 }

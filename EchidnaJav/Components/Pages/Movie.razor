@@ -1,11 +1,13 @@
 ﻿@page "/movie/{Id}"
 @using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IMovieRepositoryService Repo
 @inject IImageService ImageService
 @inject IJSRuntime JS
 @inject IPlaybackService PlaybackService
+@inject UIState UI
 
 <div class="movie-page-container">
 
@@ -144,16 +146,16 @@
         public double ScrollWidth { get; set; }
         public double ClientWidth { get; set; }
     }
-  
+
     private async Task HandleScroll()
     {
         // JavaScript helper to get scroll metrics
         var info = await JS.InvokeAsync<ScrollInfo>("getScrollInfo", "castGrid");
-    
+
         // Threshold of 5px to avoid sub-pixel jitter
         canScrollLeft = info.ScrollLeft > 5;
         canScrollRight = info.ScrollLeft + info.ClientWidth < info.ScrollWidth - 5;
-    
+
         StateHasChanged();
     }
     protected override async Task OnParametersSetAsync()
@@ -169,6 +171,7 @@
 
         if (movie != null)
         {
+            UI.SetFooterText(movie.Title);
             fullImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Full);
             posterImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Cover);
         }

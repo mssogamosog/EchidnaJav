@@ -20,7 +20,7 @@
     position: relative;
     overflow: hidden;
     min-width: 0;
-    border-radius: 12px;
+    border-radius: 0px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 
@@ -34,7 +34,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.2));
+    background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.1));
     pointer-events: none;
 }
 
@@ -202,7 +202,7 @@
     width: 100%;
     aspect-ratio: 2 / 3;
     object-fit: cover;
-    border-radius: 10px;
+    border-radius: 00px;
     box-shadow: var(--shadow);
     border: 1px solid var(--border);
 }

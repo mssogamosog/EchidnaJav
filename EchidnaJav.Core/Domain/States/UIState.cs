@@ -8,7 +8,7 @@ namespace EchidnaJav.Core.Domain.States
     {
         public bool UseWideView { get; private set; } = false;
         public int SelectedMoviesCount { get; private set; }
-        public string? HoveredMovieTitle { get; private set; }
+        public string? FooterText { get; private set; }
         public int CardWidth { get; private set; } = 180;
 
         public event Action? OnChange;
@@ -40,11 +40,11 @@ namespace EchidnaJav.Core.Domain.States
             Notify();
         }
 
-        public void SetHoveredMovie(string? title)
+        public void SetFooterText(string? title)
         {
-            if (HoveredMovieTitle != title)
+            if (FooterText != title)
             {
-                HoveredMovieTitle = title;
+                FooterText = title;
                 Notify();
             }
         }

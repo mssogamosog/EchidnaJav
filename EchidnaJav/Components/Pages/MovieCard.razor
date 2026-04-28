@@ -8,8 +8,8 @@
 @implements IAsyncDisposable
 
 
-<a href="/movie/@Movie.Id" class="movie-card" @ref="_element" @onmouseenter='() => UI.SetHoveredMovie(Movie.Title)'
-       @onmouseleave='() => UI.SetHoveredMovie(null)'>
+<a href="/movie/@Movie.Id" class="movie-card" @ref="_element" @onmouseenter='() => UI.SetFooterText(Movie.Title)'
+       @onmouseleave='() => UI.SetFooterText(null)'>
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
         @if (_currentImage != null)
         {

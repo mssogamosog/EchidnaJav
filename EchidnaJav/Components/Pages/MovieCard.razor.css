@@ -1,7 +1,7 @@
 ﻿/* Card */
 .movie-card:hover {
     transform: scale(1.03);
-    box-shadow: 0 6px 18px var(--primary); /* Glows with the theme's primary color on hover */
+    box-shadow: 0 0px 6px var(--primary);      
 }
 
 /* Image */
@@ -11,7 +11,7 @@
     flex-direction: column;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 0px;
     overflow: hidden;
     box-shadow: var(--shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
