@@ -35,15 +35,15 @@ else if (Movies.Any())
 }
 
 @code {
-    [Parameter] public string? FixedActress { get; set; } // Added for Actress page
+    [Parameter] public string? FixedActress { get; set; }
     
     private List<MovieDto> Movies = new();
     private ElementReference _triggerElement;
     private DotNetObjectReference<Home>? _dotnetRef;
     private CancellationTokenSource? _cts;
     private bool _disposed = false;
-    private string? _appliedActress; // Track which actress is currently shown
-
+    private string? _appliedActress;
+    
     private int EffectiveWidth => UI.UseWideView ? (int)(UI.CardWidth * 2.1) : UI.CardWidth;
 
     private bool isLoading = false;
@@ -55,35 +55,65 @@ else if (Movies.Any())
         UI.OnChange += Refresh;
         SearchState.OnSearchChanged += HandleSearchChanged;
         
-        // Only load cache if we are NOT on an actress page
-        if (string.IsNullOrEmpty(FixedActress) && SearchState.CachedMovies.Any())
+        if (string.IsNullOrEmpty(FixedActress))
         {
-            Movies = new List<MovieDto>(SearchState.CachedMovies);
-            hasMore = SearchState.HasMoreCached;
+            // 1. We are on the Home Page -> Restore the Home Backup
+            if (SearchState.HomeBackupMovies.Any())
+            {
+                Movies = new List<MovieDto>(SearchState.HomeBackupMovies);
+                hasMore = SearchState.HomeBackupHasMore;
+                
+                // Push to Active Cache so Arrows/Footer work
+                SearchState.CachedMovies = new List<MovieDto>(Movies);
+                SearchState.SetTotalCount(SearchState.HomeBackupTotal);
+                SearchState.ActiveCacheActress = null;
+            }
+        }
+        else
+        {
+            // 2. We are on an Actress Page -> ONLY restore if the cache belongs to HER
+            if (SearchState.ActiveCacheActress == FixedActress && SearchState.CachedMovies.Any())
+            {
+                Movies = new List<MovieDto>(SearchState.CachedMovies);
+                hasMore = SearchState.HasMoreCached;
+            }
         }
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        // 1. Detect if the URL is root (Home) or an Actress page
         var currentRelativePath = Nav.ToBaseRelativePath(Nav.Uri);
         var activeActress = string.IsNullOrEmpty(currentRelativePath) ? null : FixedActress;
 
-        // 2. If the actress has changed (or we went back to Home)
         if (_appliedActress != activeActress)
         {
             _appliedActress = activeActress;
             Movies.Clear();
             hasMore = true;
 
-            // 3. If going back to Home, try to restore the original home cache
-            if (activeActress == null && SearchState.CachedMovies.Any())
+            if (activeActress == null)
             {
-                Movies = new List<MovieDto>(SearchState.CachedMovies);
-                hasMore = SearchState.HasMoreCached;
+                // Returned to Home
+                if (SearchState.HomeBackupMovies.Any())
+                {
+                    Movies = new List<MovieDto>(SearchState.HomeBackupMovies);
+                    hasMore = SearchState.HomeBackupHasMore;
+                    
+                    SearchState.CachedMovies = new List<MovieDto>(Movies);
+                    SearchState.SetTotalCount(SearchState.HomeBackupTotal);
+                    SearchState.ActiveCacheActress = null;
+                }
+            }
+            else
+            {
+                // Switched to an Actress Page (ensure cache matches!)
+                if (SearchState.ActiveCacheActress == activeActress && SearchState.CachedMovies.Any())
+                {
+                    Movies = new List<MovieDto>(SearchState.CachedMovies);
+                    hasMore = SearchState.HasMoreCached;
+                }
             }
             
-            // If list is empty (no cache or new actress), LoadMore will fire in OnAfterRender
             StateHasChanged();
         }
     }
@@ -112,16 +142,20 @@ else if (Movies.Any())
     {
         if (firstRender)
         {
-            if (Movies.Any() && string.IsNullOrEmpty(FixedActress))
+            if (Movies.Any())
             {
-                if (SearchState.ScrollPosition > 0)
+                // Scroll restore needs to know which cache we are looking at
+                double targetScroll = string.IsNullOrEmpty(FixedActress)
+                    ? SearchState.HomeBackupScroll
+                    : SearchState.ScrollPosition;
+
+                if (targetScroll > 0)
                 {
-                    await JS.InvokeVoidAsync("setScrollPos", SearchState.ScrollPosition);
+                    await JS.InvokeVoidAsync("setScrollPos", targetScroll);
                 }
             }
         }
 
-        // Always try to load if we have no movies and haven't finished the list
         if (!Movies.Any() && hasMore && !isLoading)
         {
             await LoadMore();
@@ -176,7 +210,7 @@ else if (Movies.Any())
                 Skip = Movies.Count,
                 Take = dynamicPageSize,
                 SortBy = SearchState.CurrentSort,
-                SearchActress = _appliedActress // Use our tracked actress
+                SearchActress = _appliedActress
             };
 
             if (Movies.Count == 0)
@@ -184,9 +218,12 @@ else if (Movies.Any())
                 var total = await MovieRepo.GetTotalMovieCountAsync(queryParams);
                 if (ct.IsCancellationRequested) return;
                 
-                // Only update global footer if on Home
+                // 🔥 ALWAYS update the active total for the Footer
+                SearchState.SetTotalCount(total);
+                
+                // Only save to Home Backup if we are on the Home page
                 if (string.IsNullOrEmpty(_appliedActress))
-                    SearchState.SetTotalCount(total);
+                    SearchState.HomeBackupTotal = total;
             }
             
             var result = await MovieRepo.GetMoviesAsync(queryParams);
@@ -205,11 +242,16 @@ else if (Movies.Any())
                     hasMore = false;
                 }
 
-                // 🔥 ONLY CACHE IF ON THE HOME PAGE
+                // 🔥 ALWAYS push to Active Cache so Arrows work everywhere
+                SearchState.CachedMovies = new List<MovieDto>(Movies);
+                SearchState.HasMoreCached = hasMore;
+                SearchState.ActiveCacheActress = _appliedActress; // Tag the cache!
+
+                // 🔥 ONLY update Home Backup if we are on the Home page
                 if (string.IsNullOrEmpty(_appliedActress))
                 {
-                    SearchState.CachedMovies = new List<MovieDto>(Movies);
-                    SearchState.HasMoreCached = hasMore;
+                    SearchState.HomeBackupMovies = new List<MovieDto>(Movies);
+                    SearchState.HomeBackupHasMore = hasMore;
                 }
             }
             else
@@ -238,11 +280,15 @@ else if (Movies.Any())
         UI.OnChange -= Refresh;
         SearchState.OnSearchChanged -= HandleSearchChanged;
         
-        if (string.IsNullOrEmpty(_appliedActress))
+        try
         {
-            try { SearchState.ScrollPosition = await JS.InvokeAsync<double>("getScrollPos"); }
-            catch { }
+            var scroll = await JS.InvokeAsync<double>("getScrollPos");
+            if (string.IsNullOrEmpty(_appliedActress))
+                SearchState.HomeBackupScroll = scroll;
+            else
+                SearchState.ScrollPosition = scroll;
         }
+        catch { }
 
         if (_dotnetRef != null)
         {

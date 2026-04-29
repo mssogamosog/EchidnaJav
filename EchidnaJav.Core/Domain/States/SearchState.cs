@@ -9,6 +9,11 @@ namespace EchidnaJav.Core.Domain.States
         public string SearchText { get; private set; } = string.Empty;
         public SortMoviesBy CurrentSort { get; private set; } = SortMoviesBy.RecentlyAdded;
         public int DisplayedMoviesCount => CachedMovies.Count;
+        public List<MovieDto> HomeBackupMovies { get; set; } = new();
+        public int HomeBackupTotal { get; set; }
+        public bool HomeBackupHasMore { get; set; }
+        public double HomeBackupScroll { get; set; }
+        public string? ActiveCacheActress { get; set; }
         public int TotalDatabaseCount { get; private set; }
         public event Action? OnSearchChanged;
         public event Action? OnMetadataChanged;
