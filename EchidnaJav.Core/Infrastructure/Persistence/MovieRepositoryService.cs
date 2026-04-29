@@ -47,7 +47,8 @@ public class MovieRepositoryService : IMovieRepositoryService
                         !EF.Functions.Like(m.Id, excl) &&
                         !(m.Studio != null && EF.Functions.Like(m.Studio, excl)) &&
                         !m.MovieActresses.Any(a => EF.Functions.Like(a.Actress.Name, excl)) &&
-                        !m.Files.Any(f => f.FilePath != null && EF.Functions.Like(f.FilePath, excl))
+                        !m.Files.Any(f => f.FilePath != null && EF.Functions.Like(f.FilePath, excl)) &&
+                        !m.MovieGenres.Any(mg => EF.Functions.Like(mg.Genre.Name, excl)) 
                     );
                 }
                 else
@@ -58,7 +59,8 @@ public class MovieRepositoryService : IMovieRepositoryService
                         EF.Functions.Like(m.Id, incl) ||
                         (m.Studio != null && EF.Functions.Like(m.Studio, incl)) ||
                         m.MovieActresses.Any(a => EF.Functions.Like(a.Actress.Name, incl)) ||
-                        m.Files.Any(f => f.FilePath != null && EF.Functions.Like(f.FilePath, incl))
+                        m.Files.Any(f => f.FilePath != null && EF.Functions.Like(f.FilePath, incl)) ||
+                        m.MovieGenres.Any(mg => EF.Functions.Like(mg.Genre.Name, incl)) 
                     );
                 }
             }
@@ -135,7 +137,11 @@ public class MovieRepositoryService : IMovieRepositoryService
                 Studio = m.Studio,
                 Director = m.Director,
                 Plot = m.Plot,
-                Cast = m.MovieActresses.Select(a => a.Actress.Name).ToList(),
+                Cast = m.MovieActresses.Select(ma => new MovieActorDto
+                {
+                    Name = ma.Actress.Name,
+                    ImagePath = ma.Actress.Images.OrderBy(i => i.Index).FirstOrDefault().Filepath
+                }).ToList(),
                 Genres = m.MovieGenres.Select(g => g.Genre.Name).ToList(),
                 Files = m.Files.OrderBy(f => f.FileName).Select(f => new FileDto
                 {

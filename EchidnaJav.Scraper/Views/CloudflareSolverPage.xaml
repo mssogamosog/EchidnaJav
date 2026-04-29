@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="EchidnaJav.Scraper.Views.CloudflareSolverPage" Title="Security Check">
+
+    <Grid>
+        <WebView x:Name="ChallengeWebView" Navigated="OnWebViewNavigated" />
+
+        <Border BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark=#1E1E24}" 
+                StrokeThickness="0"
+                VerticalOptions="Start" 
+                Margin="10" Padding="15"
+                StrokeShape="RoundRectangle 8">
+            <Label Text="Please complete the security check to continue scraping."
+                   HorizontalOptions="Center" 
+                   FontAttributes="Bold"/>
+        </Border>
+    </Grid>
+
+</ContentPage>

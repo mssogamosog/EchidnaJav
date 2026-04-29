@@ -1,9 +1,12 @@
 ﻿using CommunityToolkit.Maui;
 using EchidnaJav.Core.Domain.States;
 using EchidnaJav.Core.Infrastructure.FileSystem;
+using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Mappers;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using EchidnaJav.Core.Infrastructure.Services;
+using EchidnaJav.Scraper;
+using EchidnaJav.Scraper.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SQLitePCL;
@@ -47,6 +50,13 @@ namespace EchidnaJav
             builder.Services.AddScoped<ILocalMediaScanner, LocalMediaScanner>();
             builder.Services.AddScoped<INfoParserService, NfoParserService>();
             builder.Services.AddScoped<IPlaybackService, PlaybackService>();
+            builder.Services.AddScoped<IActressRepositoryService, ActressRepositoryService>();
+            builder.Services.AddScoped<IScrapeService, ScrapeService>();
+            builder.Services.AddScoped<IActressScraper, ActressJavDatabase>();
+            builder.Services.AddScoped<IActressScraper, ActressJavModel>();
+            builder.Services.AddScoped<IFileUtilityService, FileUtilityService>();
+            builder.Services.AddHttpClient<IImageService, ImageService>();
+            builder.Services.AddHttpClient();
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
                 var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");

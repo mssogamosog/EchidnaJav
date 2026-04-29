@@ -6,6 +6,7 @@
 @inject IMovieRepositoryService Repo
 @inject IImageService ImageService
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @inject IPlaybackService PlaybackService
 @inject UIState UI
 
@@ -86,11 +87,21 @@
                     <div class="cast-grid @(canScrollLeft ? "mask-left" : "") @(canScrollRight ? "mask-right" : "")"
                          id="castGrid"
                          @onscroll="HandleScroll">
-                        @foreach (var actor in movie?.Cast ?? Enumerable.Empty<string>())
+                        @foreach (var actor in movie?.Cast ?? Enumerable.Empty<MovieActorDto>())
                         {
-                            <div class="actor-card">
-                                <div class="actor-img-placeholder"></div>
-                                <span>@actor</span>
+                            <div class="actor-card" @onclick='() => Nav.NavigateTo($"/actress/{Uri.EscapeDataString(actor.Name)}")' style="cursor: pointer;">
+            
+                                @* 🔥 Check if we have an image, otherwise show the ghost circle *@
+                                @if (!string.IsNullOrEmpty(actor.ImagePath))
+                                {
+                                    <img src="@actor.ImagePath" class="actor-img" alt="@actor.Name" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <div class="actor-img-placeholder"></div>
+                                }
+            
+                                <span>@actor.Name</span>
                             </div>
                         }
                     </div>
@@ -174,6 +185,16 @@
             UI.SetFooterText(movie.Title);
             fullImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Full);
             posterImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Cover);
+            if (movie.Cast != null)
+            {
+                foreach (var actor in movie.Cast)
+                {
+                    if (!string.IsNullOrEmpty(actor.ImagePath))
+                    {
+                        actor.ImagePath = await ImageService.GetImageAsync(actor.ImagePath, ImageType.Full);
+                    }
+                }
+            }
         }
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)

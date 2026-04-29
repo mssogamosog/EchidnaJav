@@ -1,0 +1,137 @@
+﻿@page "/actress/{Name}"
+@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Persistence
+@using EchidnaJav.Core.Infrastructure.Services
+@inject IActressRepositoryService Repo
+@inject IImageService ImageService
+@inject NavigationManager Nav
+@inject UIState UI
+
+<div class="actress-page-container">
+    @if (actress == null)
+    {
+        <div class="loading-spinner">Loading @Name...</div>
+    }
+    else
+    {
+        <div class="actress-sidebar">
+            
+            <div class="title-area">
+                <h1 class="actress-name">@actress.Name</h1>
+                @if (!string.IsNullOrEmpty(actress.JapaneseName))
+                {
+                    <h4 class="actress-jp-name text-muted">@actress.JapaneseName</h4>
+                }
+            </div>
+
+            <div class="poster-container">
+                @if (!string.IsNullOrEmpty(actressImage))
+                {
+                    <div class="carousel-wrapper">
+                        @if (actress.Images.Count > 1)
+                        {
+                            <button class="carousel-btn prev" @onclick="() => RotateImage(-1)">❮</button>
+                        }
+
+                        <img src="@actressImage" class="poster-img" alt="@actress.Name" />
+
+                        @if (actress.Images.Count > 1)
+                        {
+                            <button class="carousel-btn next" @onclick="() => RotateImage(1)">❯</button>
+                            <div class="image-counter">@(currentIndex + 1) / @actress.Images.Count</div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="actor-img-placeholder large"></div>
+                }
+            </div>
+
+            <div class="info-main">
+                <div class="info-grid">
+                    <div>Born:</div>
+                    <div>@(actress.DobYear > 0 ? $"{actress.DobYear}-{actress.DobMonth:D2}-{actress.DobDay:D2}" : "Unknown")</div>
+
+                    <div>Height:</div>
+                    <div>@(actress.Height > 0 ? $"{actress.Height} cm" : "Unknown")</div>
+
+                    <div>Measurements:</div>
+                    <div>
+                        B@(actress.Bust > 0 ? actress.Bust.ToString() : "?") -
+                        W@(actress.Waist > 0 ? actress.Waist.ToString() : "?") -
+                        H@(actress.Hips > 0 ? actress.Hips.ToString() : "?")
+                    </div>
+
+                    <div>Cup Size:</div>
+                    <div>@(string.IsNullOrEmpty(actress.Cup) ? "Unknown" : actress.Cup)</div>
+
+                    <div>Blood Type:</div>
+                    <div>@(string.IsNullOrEmpty(actress.BloodType) ? "Unknown" : actress.BloodType)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="movies-container">
+            <div class="movies-container">
+                <h3 class="movies-header">Appears In (@actress.Movies?.Count)</h3>
+            
+                <Home FixedActress="@actress.Name" />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Name { get; set; }
+    private int currentIndex = 0;
+    private ActressDetailsDto? actress;
+    private string? actressImage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Decode the URL (e.g. "Aika%20Yumeno" back to "Aika Yumeno")
+        string decodedName = Uri.UnescapeDataString(Name);
+        // Fetch the details from your repository
+        actress = await Repo.GetActressDetailsAsync(decodedName);
+
+        if (actress != null)
+        {
+            UI.SetFooterText(actress.Name);
+
+            // 🔥 Process the first available image using your ImageService
+            var primaryImage = actress.Images.FirstOrDefault();
+            if (primaryImage != null)
+            {
+                // We use ImageType.Cover or ImageType.Full depending on your preference for the profile header
+                actressImage = await ImageService.GetImageAsync(primaryImage.Filepath, ImageType.Full);
+            }
+        }
+    }
+    private async Task RotateImage(int direction)
+    {
+        if (actress == null || !actress.Images.Any()) return;
+
+        // Circular math: (index + direction + length) % length
+        int count = actress.Images.Count;
+        currentIndex = (currentIndex + direction + count) % count;
+
+        var selectedImage = actress.Images[currentIndex];
+        
+        // 1. Update UI
+        await LoadCurrentImage();
+
+        // 2. Persist to DB: Make this image index 0
+        await Repo.SetDefaultActressImageAsync(actress.Name, selectedImage.Filepath);
+    }
+
+    private async Task LoadCurrentImage()
+    {
+        if (actress != null && actress.Images.Any())
+        {
+            actressImage = await ImageService.GetImageAsync(actress.Images[currentIndex].Filepath, ImageType.Full);
+        }
+    }
+}

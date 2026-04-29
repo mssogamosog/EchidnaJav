@@ -258,7 +258,19 @@
     margin-bottom: 6px;
     border: 1px solid var(--border);
 }
-
+.actor-img-placeholder,
+.actor-img {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%; /* Keeps it a perfect circle */
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+}
+.actor-img {
+    object-fit: cover; /* Fills the circle without stretching */
+    object-position: top center; /* 🔥 This forces the crop to focus on the top half (the face) */
+    display: block;
+}
 .actor-card span {
     display: block;
     margin-top: 8px;

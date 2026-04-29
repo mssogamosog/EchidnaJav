@@ -27,9 +27,9 @@ namespace EchidnaJav.Core.Domain.Entities
         public double? UserRating { get; set; }
         public string? Notes { get; set; }
 
-        public List<ActressAltName>? AltNames { get; set; }
-        public List<ActressImage>? Images { get; set; }
-        public List<MovieActress>? MovieActresses { get; set; }
+        public List<ActressAltName> AltNames { get; set; } = new List<ActressAltName>();
+        public List<ActressImage> Images { get; set; } = new List<ActressImage>();
+        public List<MovieActress> MovieActresses { get; set; } = new List<MovieActress>();
     }   
     public class ActressAltName
     {
@@ -41,7 +41,7 @@ namespace EchidnaJav.Core.Domain.Entities
     {
         public int Id { get; set; }
         public int ActressId { get; set; }
-        public string FileName { get; set; }
+        public string Filepath { get; set; }
         public int Index { get; set; }
     }
 }

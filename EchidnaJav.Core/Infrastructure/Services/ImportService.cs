@@ -1,6 +1,7 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.FileSystem;
+using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Mappers;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -21,28 +22,28 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
     public class ImportService : IImportService
     {
-        private readonly IMovieIdService _movieIdService;
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
         private readonly ILogger<ImportService> _logger;
         private readonly IMovieDbMapper _movieDbMapper;
         private readonly IImageService _imageService;
         private readonly ILocalMediaScanner _localMediaScanner;
         private readonly INfoParserService _nfoParserService;
+        private readonly IScrapeService _scrapeService;
         private readonly ConcurrentDictionary<string, bool> _queuedImages = new();
 
         public ImportService(
-            IMovieIdService movieIdService,
             IDbContextFactory<AppDbContext> dbFactory,
             ILogger<ImportService> logger,
             IMovieDbMapper movieDbMapper,
             IImageService imageService,
             ILocalMediaScanner localMediaScanner,
-            INfoParserService nfoParserService)
+            INfoParserService nfoParserService,
+            IScrapeService scrapeService)
         {
-            _movieIdService = movieIdService;
             _dbFactory = dbFactory;
             _logger = logger;
             _movieDbMapper = movieDbMapper;
+            _scrapeService = scrapeService;
             _nfoParserService = nfoParserService;
             _localMediaScanner = localMediaScanner;
             _imageService = imageService;
@@ -50,6 +51,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
         {
+            var newlyScrapedActresses = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var groups = await _localMediaScanner.GroupFilesByMovieAsync(rootPath);
 
             int total = groups.Count;
@@ -122,7 +124,39 @@ namespace EchidnaJav.Core.Infrastructure.Services
                                 Report("Skipped (Exists)", movie.Id);
                                 continue;
                             }
+                            if (movie.MovieActresses != null && movie.MovieActresses.Any())
+                            {
+                                foreach (var ma in movie.MovieActresses)
+                                {
+                                    // Your NFO parser likely populates the Actress navigation property with her name
+                                    string actorName = ma.Actress?.Name;
 
+                                    if (string.IsNullOrWhiteSpace(actorName))
+                                        continue;
+
+                                    // 1. Skip if she is already in the database
+                                    if (actressCache.ContainsKey(actorName.ToLower()))
+                                        continue;
+
+                                    // 2. Skip if we already scraped her in a previous loop this session
+                                    if (newlyScrapedActresses.ContainsKey(actorName))
+                                        continue;
+
+                                    // 3. We have a new actress! Scrape her.
+                                    _logger.LogInformation($"New actress detected: {actorName}. Initiating scraper...");
+
+                                    var scrapedData = new ActressData { Name = actorName };
+
+                                    // Scrape using English by default (or pull from your settings)
+                                    await _scrapeService.ScrapeActressAsync(scrapedData, LanguageType.English);
+
+                                    // 4. Mark her as processed so we don't scrape her again for the next movie
+                                    newlyScrapedActresses.Add(actorName, true);
+                                }
+
+                                // Refresh the actress cache so the Mapper knows about the newly scraped actresses
+                                actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                            }
                             var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
                             var bestImage = _imageService.GetBestImage(movie);
                             dbMovie.PrimaryImagePath = bestImage;

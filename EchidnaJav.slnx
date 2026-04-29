@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="EchidnaJav.Core/EchidnaJav.Core.csproj" Id="bce62d11-e77b-41a1-bf7f-de4fcfbd1716" />
+  <Project Path="EchidnaJav.Scraper/EchidnaJav.Scraper.csproj" Id="17e9450f-b042-42f5-aed6-3e8c93313e5b" />
   <Project Path="EchidnaJav/EchidnaJav.csproj">
     <Deploy />
   </Project>

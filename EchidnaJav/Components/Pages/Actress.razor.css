@@ -1,0 +1,172 @@
+﻿/* ================= MAIN GRID ================= */
+.actress-page-container {
+    display: grid;
+    /* 300px for Left Column, fluid space for the Right Column */
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 40px;
+    align-items: start; /* Prevents columns from stretching to match heights */
+    padding: 24px;
+}
+
+/* ================= LEFT COLUMN ================= */
+.actress-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    /* Keeps the profile visible while scrolling the movie grid! */
+    position: sticky;
+    top: 24px;
+}
+
+.title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.actress-name {
+    font-size: 2rem;
+    margin: 0;
+    color: var(--text);
+    line-height: 1.1;
+}
+
+.poster-img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    object-position: top center; /* Centers on the face */
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px 12px;
+    font-size: 0.95rem;
+    background: var(--surface-2);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+    .info-grid div:nth-child(odd) {
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+    }
+
+/* ================= RIGHT COLUMN ================= */
+.movies-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.movies-header {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+}
+
+.movies-grid {
+    display: grid;
+    /* Creates a responsive grid of movie cards that wrap automatically */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.movie-mini-card {
+    background: var(--surface-2);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+    .movie-mini-card:hover {
+        border-color: var(--primary);
+        transform: translateY(-3px);
+        background: var(--surface);
+    }
+
+    .movie-mini-card .movie-id {
+        color: var(--primary);
+        font-weight: 700;
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+    }
+
+/* ================= MOBILE FALLBACK ================= */
+@media (max-width: 900px) {
+    .actress-page-container {
+        grid-template-columns: 1fr; /* Stacks everything into one column */
+        gap: 32px;
+    }
+
+    .actress-sidebar {
+        position: static; /* Disables sticky scrolling on small screens */
+    }
+}
+.carousel-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+}
+
+.carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    border: none;
+    padding: 15px 10px;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.2s, opacity 0.2s;
+    opacity: 0; /* Hidden until hover */
+    font-size: 1.5rem;
+}
+
+.carousel-wrapper:hover .carousel-btn {
+    opacity: 1;
+}
+
+.carousel-btn:hover {
+    background: var(--primary);
+    color: #000;
+}
+
+.carousel-btn.prev {
+    left: 0;
+    border-radius: 0 4px 4px 0;
+}
+
+.carousel-btn.next {
+    right: 0;
+    border-radius: 4px 0 0 4px;
+}
+
+.image-counter {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    backdrop-filter: blur(4px);
+}

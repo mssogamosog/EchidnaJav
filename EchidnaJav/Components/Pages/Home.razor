@@ -7,6 +7,7 @@
 @inject IMovieRepositoryService MovieRepo
 @inject UIState UI
 @inject SearchState SearchState
+@inject NavigationManager Nav
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -34,15 +35,16 @@ else if (Movies.Any())
 }
 
 @code {
+    [Parameter] public string? FixedActress { get; set; } // Added for Actress page
+    
     private List<MovieDto> Movies = new();
     private ElementReference _triggerElement;
     private DotNetObjectReference<Home>? _dotnetRef;
     private CancellationTokenSource? _cts;
     private bool _disposed = false;
+    private string? _appliedActress; // Track which actress is currently shown
 
-    private int EffectiveWidth => UI.UseWideView
-        ? (int)(UI.CardWidth * 2.1)
-        : UI.CardWidth;
+    private int EffectiveWidth => UI.UseWideView ? (int)(UI.CardWidth * 2.1) : UI.CardWidth;
 
     private bool isLoading = false;
     private bool hasMore = true;
@@ -52,12 +54,40 @@ else if (Movies.Any())
     {
         UI.OnChange += Refresh;
         SearchState.OnSearchChanged += HandleSearchChanged;
-        if (SearchState.CachedMovies.Any())
+        
+        // Only load cache if we are NOT on an actress page
+        if (string.IsNullOrEmpty(FixedActress) && SearchState.CachedMovies.Any())
         {
             Movies = new List<MovieDto>(SearchState.CachedMovies);
             hasMore = SearchState.HasMoreCached;
         }
     }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // 1. Detect if the URL is root (Home) or an Actress page
+        var currentRelativePath = Nav.ToBaseRelativePath(Nav.Uri);
+        var activeActress = string.IsNullOrEmpty(currentRelativePath) ? null : FixedActress;
+
+        // 2. If the actress has changed (or we went back to Home)
+        if (_appliedActress != activeActress)
+        {
+            _appliedActress = activeActress;
+            Movies.Clear();
+            hasMore = true;
+
+            // 3. If going back to Home, try to restore the original home cache
+            if (activeActress == null && SearchState.CachedMovies.Any())
+            {
+                Movies = new List<MovieDto>(SearchState.CachedMovies);
+                hasMore = SearchState.HasMoreCached;
+            }
+            
+            // If list is empty (no cache or new actress), LoadMore will fire in OnAfterRender
+            StateHasChanged();
+        }
+    }
+
     private void HandleSearchChanged()
     {
         _cts?.Cancel();
@@ -74,26 +104,27 @@ else if (Movies.Any())
             Movies.Clear();
             hasMore = true;
             isLoading = false;
-            
             await LoadMore();
-            
         });
     }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            if (Movies.Any())
+            if (Movies.Any() && string.IsNullOrEmpty(FixedActress))
             {
                 if (SearchState.ScrollPosition > 0)
                 {
                     await JS.InvokeVoidAsync("setScrollPos", SearchState.ScrollPosition);
                 }
             }
-            else
-            {
-                await LoadMore();
-            }
+        }
+
+        // Always try to load if we have no movies and haven't finished the list
+        if (!Movies.Any() && hasMore && !isLoading)
+        {
+            await LoadMore();
         }
 
         if (hasMore && !_observerRegistered)
@@ -124,41 +155,38 @@ else if (Movies.Any())
         try
         {
             int columns = 1;
-            try
-            {
-                columns = await JS.InvokeAsync<int>("getGridColumns");
-                if (columns < 1) columns = 1;
-            }
-            catch { /* Fallback if JS fails */ }
-           
+            try { columns = await JS.InvokeAsync<int>("getGridColumns"); } catch { }
+            if (columns < 1) columns = 1;
 
-            
-            
             int remainder = Movies.Count % columns;
             int missingToFillRow = (columns - remainder) % columns;
             
             int targetItems = 50;
             int rowsToAdd = (int)Math.Ceiling((double)targetItems / columns);
             int dynamicPageSize = missingToFillRow + (rowsToAdd * columns);
+            
             string rawSearch = SearchState.SearchText ?? string.Empty;
-            bool wantsNoCover = rawSearch.Contains("no-cover", StringComparison.OrdinalIgnoreCase); 
+            bool wantsNoCover = rawSearch.Contains("no-cover", StringComparison.OrdinalIgnoreCase);
             string cleanSearchText = rawSearch.Replace("no-cover", "", StringComparison.OrdinalIgnoreCase).Trim();
 
             var queryParams = new MovieQueryParameters
             {
-                SearchText = cleanSearchText, // Grab text from state
+                SearchText = cleanSearchText,
                 MissingImageOnly = wantsNoCover,
                 Skip = Movies.Count,
                 Take = dynamicPageSize,
-                SortBy = SearchState.CurrentSort
-            };           
+                SortBy = SearchState.CurrentSort,
+                SearchActress = _appliedActress // Use our tracked actress
+            };
 
             if (Movies.Count == 0)
             {
                 var total = await MovieRepo.GetTotalMovieCountAsync(queryParams);
                 if (ct.IsCancellationRequested) return;
-                SearchState.SetTotalCount(total);
-
+                
+                // Only update global footer if on Home
+                if (string.IsNullOrEmpty(_appliedActress))
+                    SearchState.SetTotalCount(total);
             }
             
             var result = await MovieRepo.GetMoviesAsync(queryParams);
@@ -177,17 +205,20 @@ else if (Movies.Any())
                     hasMore = false;
                 }
 
-                SearchState.CachedMovies = new List<MovieDto>(Movies);
-                SearchState.HasMoreCached = hasMore;
+                // 🔥 ONLY CACHE IF ON THE HOME PAGE
+                if (string.IsNullOrEmpty(_appliedActress))
+                {
+                    SearchState.CachedMovies = new List<MovieDto>(Movies);
+                    SearchState.HasMoreCached = hasMore;
+                }
             }
             else
             {
                 hasMore = false;
-                SearchState.HasMoreCached = false;
             }
         }
         catch (Exception)
-        {       
+        {
             hasMore = true;
         }
         finally
@@ -197,10 +228,7 @@ else if (Movies.Any())
         }
     }
 
-    void Refresh()
-    {
-        InvokeAsync(StateHasChanged);
-    }
+    void Refresh() => InvokeAsync(StateHasChanged);
 
     public async ValueTask DisposeAsync()
     {
@@ -208,18 +236,17 @@ else if (Movies.Any())
         _cts?.Cancel();
         _cts?.Dispose();
         UI.OnChange -= Refresh;
-        SearchState.OnSearchChanged -= HandleSearchChanged;        
-        try
+        SearchState.OnSearchChanged -= HandleSearchChanged;
+        
+        if (string.IsNullOrEmpty(_appliedActress))
         {
-            SearchState.ScrollPosition = await JS.InvokeAsync<double>("getScrollPos");
+            try { SearchState.ScrollPosition = await JS.InvokeAsync<double>("getScrollPos"); }
+            catch { }
         }
-        catch { /* Ignore if JS interop is already disconnected */ }
 
         if (_dotnetRef != null)
         {
-            try { await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement); }
-            catch { }
-            
+            try { await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement); } catch { }
             _dotnetRef.Dispose();
         }
     }
