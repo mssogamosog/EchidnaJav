@@ -4,12 +4,12 @@ using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
-
 public interface IMovieRepositoryService
 {
     Task<MovieDetailsDto?> GetMovieDetailsAsync(string id);
     Task<List<MovieDto>> GetMoviesAsync(MovieQueryParameters queryParams);
     Task<int> GetTotalMovieCountAsync(MovieQueryParameters queryParams);
+    Task<List<string>> GetAllMovieIdsAsync();
 }
 
 public class MovieRepositoryService : IMovieRepositoryService
@@ -119,7 +119,14 @@ public class MovieRepositoryService : IMovieRepositoryService
 
         return await query.CountAsync();
     }
+    public async Task<List<string>> GetAllMovieIdsAsync()
+    {
+        using var db = _dbFactory.CreateDbContext();
 
+        return await db.Movies
+            .Select(m => m.Id)
+            .ToListAsync();
+    }
     public async Task<MovieDetailsDto?> GetMovieDetailsAsync(string id)
     {
         using var db = _dbFactory.CreateDbContext();

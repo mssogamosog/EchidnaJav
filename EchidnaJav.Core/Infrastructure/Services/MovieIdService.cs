@@ -65,11 +65,12 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
         
             // Basic / Compact (MDVR-129A -> MDVR-129)
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,8})([A-Za-z]?)(?=[^0-9A-Za-z]|$)",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}{2}",
-                    m.Groups[1].Value.ToUpper(),
-                    m.Groups[2].Value,
-                    (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
+                m.Groups[1].Value.ToUpper(),
+                m.Groups[2].Value,
+                (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
         
             // Single Letter (A-123)
             new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z])(?:[-_ ]?)([0-9]{3,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),

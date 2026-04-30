@@ -69,7 +69,9 @@ namespace EchidnaJav.Test
         [InlineData("test[abc-123]test", "ABC-123")]
         [InlineData("448950_3xplanet_DSVR-049_A", "DSVR-049")]
         [InlineData("443876-3xplanet-CRVR-346-A", "CRVR-346")]
+        [InlineData("140220B.ABP028HD", "ABP-028")]
         
+
         public void Parse_LongAndEmbedded(string input, string expected)
         {
             var result = _service.ParseMovieID(input);

@@ -23,6 +23,9 @@
     flex-direction: column;
     gap: 4px;
 }
+.actress-jp-name {
+    color: var(--text-muted)
+}
 
 .actress-name {
     font-size: 2rem;

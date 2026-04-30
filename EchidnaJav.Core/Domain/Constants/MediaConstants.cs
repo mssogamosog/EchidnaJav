@@ -8,7 +8,7 @@ namespace EchidnaJav.Core.Domain.Constants
     {
         public static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".mp4", ".mkv", ".avi", ".wmv", ".mov", ".flv", ".m4v", ".ts", ".webm"
+            ".mp4", ".mkv", ".avi", ".wmv", ".mov", ".flv", ".m4v", ".ts", ".webm",".mpg",".iso"
         };
     }
 }

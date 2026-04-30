@@ -36,14 +36,14 @@ else if (Movies.Any())
 
 @code {
     [Parameter] public string? FixedActress { get; set; }
-    
+
     private List<MovieDto> Movies = new();
     private ElementReference _triggerElement;
     private DotNetObjectReference<Home>? _dotnetRef;
     private CancellationTokenSource? _cts;
     private bool _disposed = false;
     private string? _appliedActress;
-    
+
     private int EffectiveWidth => UI.UseWideView ? (int)(UI.CardWidth * 2.1) : UI.CardWidth;
 
     private bool isLoading = false;
@@ -54,7 +54,7 @@ else if (Movies.Any())
     {
         UI.OnChange += Refresh;
         SearchState.OnSearchChanged += HandleSearchChanged;
-        
+
         if (string.IsNullOrEmpty(FixedActress))
         {
             // 1. We are on the Home Page -> Restore the Home Backup
@@ -62,7 +62,7 @@ else if (Movies.Any())
             {
                 Movies = new List<MovieDto>(SearchState.HomeBackupMovies);
                 hasMore = SearchState.HomeBackupHasMore;
-                
+
                 // Push to Active Cache so Arrows/Footer work
                 SearchState.CachedMovies = new List<MovieDto>(Movies);
                 SearchState.SetTotalCount(SearchState.HomeBackupTotal);
@@ -98,7 +98,7 @@ else if (Movies.Any())
                 {
                     Movies = new List<MovieDto>(SearchState.HomeBackupMovies);
                     hasMore = SearchState.HomeBackupHasMore;
-                    
+
                     SearchState.CachedMovies = new List<MovieDto>(Movies);
                     SearchState.SetTotalCount(SearchState.HomeBackupTotal);
                     SearchState.ActiveCacheActress = null;
@@ -113,7 +113,7 @@ else if (Movies.Any())
                     hasMore = SearchState.HasMoreCached;
                 }
             }
-            
+
             StateHasChanged();
         }
     }
@@ -130,18 +130,26 @@ else if (Movies.Any())
                 try { await JS.InvokeVoidAsync("infiniteScroll.unobserve", _triggerElement); } catch { }
                 _observerRegistered = false;
             }
-            
+
             Movies.Clear();
             hasMore = true;
             isLoading = false;
             await LoadMore();
         });
     }
+    public async Task CopyAllMovieIdsAsync()
+    {
+        var ids = await MovieRepo.GetAllMovieIdsAsync();
 
+        var text = string.Join(Environment.NewLine, ids);
+
+        //await Clipboard.Default.SetTextAsync(text);
+    }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            await CopyAllMovieIdsAsync();
             if (Movies.Any())
             {
                 // Scroll restore needs to know which cache we are looking at
