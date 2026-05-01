@@ -256,11 +256,20 @@ namespace EchidnaJav.Core.Infrastructure.Services
             finally
             {
                
-                channel.Writer.TryComplete();
-                await consumerTask;
 
-                imageWriter.TryComplete();
-                await Task.WhenAll(imageWorkers); 
+                channel.Writer.TryComplete();
+                try
+                {
+                    await consumerTask;
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    imageWriter.TryComplete();
+                    await Task.WhenAll(imageWorkers);
+                }
             }
         }
         

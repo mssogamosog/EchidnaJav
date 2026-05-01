@@ -2,29 +2,21 @@
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
-@using Microsoft.Maui.Storage
-
 @inject IImportService ImportService
 @inject ImportState ImportState
-
 @implements IDisposable
-
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<!-- 🔥 Sidebar container -->
-<div class="nav-scrollable d-flex flex-column sidebar-container"
-     onclick="document.querySelector('.navbar-toggler').click()">
-
-    <!-- 🔝 NAV CONTENT -->
+<div class="nav-scrollable d-flex flex-column sidebar-container" onclick="document.querySelector('.navbar-toggler').click()">
     <div>
         <nav class="nav flex-column">
-
             <div class="nav-item px-3">
                 <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
                     <span class="bi bi-house-door-fill-nav-menu"></span> Home
                 </NavLink>
-            </div>            
+            </div>
+            
             <div class="nav-item px-3">
                 <button class="nav-link btn btn-link text-start w-100"
                         @onclick="PickFolder"
@@ -33,78 +25,25 @@
                     @(ImportState.IsRunning ? "Importing..." : "Import Folder")
                 </button>
             </div>
-
         </nav>
     </div>
-
-    <!-- 🔽 PROGRESS (STICKY BOTTOM) -->
-    @if (ImportState.IsRunning)
-    {
-        <div class="sidebar-progress p-3 border-top text-light">
-
-            <!-- 📄 STATUS -->
-            <div class="mb-2 small">
-                <div class="fw-bold">@ImportState.Progress.Status</div>
-
-                <div class="text-truncate"
-                     title="@ImportState.Progress.CurrentMovieId">
-                    @ImportState.Progress.CurrentMovieId
-                </div>
-
-                <div class="text-secondary">
-                    @ImportState.Progress.Processed / @ImportState.Progress.Total
-                </div>
-            </div>
-
-            <!-- 📊 BAR + CANCEL -->
-            <div class="d-flex align-items-center gap-2">
-
-                <div class="progress w-100" style="height:18px;">
-                    <div class="progress-bar bg-success text-dark fw-bold"
-                         role="progressbar"
-                         style="width:@Percentage%">
-                        @Percentage%
-                    </div>
-                </div>
-
-                <button class="btn btn-sm btn-outline-light"
-                        @onclick="CancelImport">
-                    ✖
-                </button>
-
-            </div>
-        </div>
-    }
 </div>
 
 @code {
-    private int Percentage =>
-        ImportState.Progress.Total == 0
-            ? 0
-            : (int)((ImportState.Progress.Processed * 100.0) / ImportState.Progress.Total);
-
     protected override void OnInitialized()
-    {      
-        ImportState.OnChange += HandleStateChange;
+    {
+        // We still subscribe here solely to update the "Import Folder" button text/disabled state
+        ImportState.OnChange += SafeStateHasChanged;
     }
 
     public void Dispose()
     {
-        ImportState.OnChange -= HandleStateChange;
+        ImportState.OnChange -= SafeStateHasChanged;
     }
-    private void HandleStateChange()
+
+    private void SafeStateHasChanged()
     {
-        _ = InvokeAsync(() =>
-        {
-            try
-            {
-                StateHasChanged();
-            }
-            catch
-            {
-                // Silently ignore if the component is disposed or heavily locked
-            }
-        });
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async Task PickFolder()
@@ -114,14 +53,8 @@
         if (result?.Folder?.Path is string rootPath)
         {
             ImportState.Cts = new CancellationTokenSource();
-
             ImportState.IsRunning = true;
-            ImportState.Progress = new ImportProgress
-            {
-                Status = "Starting...",
-                Processed = 0,
-                Total = 0
-            };
+            ImportState.Progress = new ImportProgress { Status = "Starting...", Processed = 0, Total = 0 };
             ImportState.Notify();
 
             var progressHandler = new Progress<ImportProgress>(p =>
@@ -132,25 +65,23 @@
 
             try
             {
-                await ImportService.ImportFromFolderAsync(
-                    rootPath,
-                    progressHandler,
-                    ImportState.Cts.Token);
+                await ImportService.ImportFromFolderAsync(rootPath, progressHandler, ImportState.Cts.Token);
             }
             catch (OperationCanceledException)
             {
                 ImportState.Progress.Status = "Cancelled";
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Import Failed: {ex.Message}");
+                ImportState.Progress.Status = "Error Occurred";
+            }
             finally
             {
+                await Task.Delay(1500);
                 ImportState.IsRunning = false;
                 ImportState.Notify();
             }
         }
-    }
-
-    private void CancelImport()
-    {
-        ImportState.Cts?.Cancel();
     }
 }

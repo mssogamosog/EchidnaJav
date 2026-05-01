@@ -1,4 +1,5 @@
-﻿@using EchidnaJav.Core.Domain.DTOs
+﻿@using EchidnaJav.Components.Pages
+@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
 @inherits LayoutComponentBase
@@ -42,7 +43,6 @@
             <aside class="sidebar @(menuOpen ? "open" : "closed")">
                 <NavMenu />
             </aside>
-
             <div class="content-shell">
 
                 <div class="toolbar">
@@ -146,6 +146,11 @@
             </div>
 
         </div>
+        <div class="widget-stack-container">
+            <ActressProgress />
+            <ImportProgressWidget />
+        </div>
+        
         <footer class="status-bar">
             <div class="status-left">
                 @if (UI.SelectedMoviesCount > 0)

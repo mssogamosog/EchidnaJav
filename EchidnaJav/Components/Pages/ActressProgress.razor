@@ -1,0 +1,46 @@
+﻿@using EchidnaJav.Core.Domain.States
+@inject ScraperActressState ScraperState
+@implements IDisposable
+
+@if (ScraperState.IsProcessing)
+{
+    <div class="compact-widget @(isMinimized ? "minimized" : "")">
+        <div class="cw-header">
+            <span class="cw-title">Actresses</span>
+            
+            @* 🔥 Dynamically change the text based on minimized state *@
+            <span class="cw-count">
+                @(isMinimized
+                    ? $"{ScraperState.ProcessedCount} / {ScraperState.RemainingCount}"
+                    : $"{ScraperState.ProcessedCount} / {ScraperState.TotalQueued}")
+            </span>
+
+            <button class="cw-toggle-btn" @onclick="ToggleMinimize" title="Toggle Size">
+                @(isMinimized ? "+" : "−")
+            </button>
+        </div>
+
+        @if (!isMinimized)
+        {
+            <div class="cw-body">
+                <div class="cw-track">
+                    <div class="cw-fill" style="width: @($"{Percentage}%")"></div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool isMinimized = true; // Starts minimized to be compact by default
+
+    private double Percentage => ScraperState.TotalQueued == 0
+        ? 0
+        : ((double)ScraperState.ProcessedCount / ScraperState.TotalQueued) * 100;
+
+    protected override void OnInitialized() => ScraperState.OnChange += SafeStateHasChanged;
+    public void Dispose() => ScraperState.OnChange -= SafeStateHasChanged;
+
+    private void SafeStateHasChanged() => InvokeAsync(StateHasChanged);
+    private void ToggleMinimize() => isMinimized = !isMinimized;
+}

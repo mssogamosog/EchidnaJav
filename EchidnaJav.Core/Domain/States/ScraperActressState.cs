@@ -4,7 +4,7 @@ using System.Text;
 
 namespace EchidnaJav.Core.Domain.States
 {
-    public class ScraperState
+    public class ScraperActressState
     {
         private int _totalQueued = 0;
         private int _processedCount = 0;

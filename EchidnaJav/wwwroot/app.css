@@ -212,3 +212,126 @@ input, textarea, select, .form-control {
 * {
     transition: background-color .25s ease, color .25s ease, border-color .25s ease;
 }
+/* --- THE STACK CONTAINER --- */
+.widget-stack-container {
+    position: fixed;
+    bottom: 24px;
+    left: 24px; /* 🔥 Moved to bottom-left */
+    display: flex;
+    flex-direction: column-reverse; /* Newest items stack upwards */
+    gap: 10px;
+    z-index: 9999;
+    align-items: flex-start; /* 🔥 Aligns them flush to the left */
+}
+
+/* --- COMPACT WIDGET BASE --- */
+.compact-widget {
+    background: var(--glass);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: var(--shadow);
+    width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: width 0.3s ease, padding 0.3s ease;
+}
+
+    /* 🔥 When Minimized: Exact same fixed width for both */
+    .compact-widget.minimized {
+        width: 180px;
+        padding: 8px 12px;
+    }
+
+/* --- HEADER --- */
+.cw-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cw-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Keeps long text from stretching the box */
+}
+
+.cw-count {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto; /* Pushes the counter to the right */
+    white-space: nowrap;
+}
+
+.cw-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0px 4px;
+    border-radius: 4px;
+}
+
+    .cw-toggle-btn:hover {
+        background: var(--surface-2);
+        color: var(--text);
+    }
+
+/* --- BODY (Bars and Buttons) --- */
+.cw-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+}
+
+.cw-filename {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cw-bottom-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cw-track {
+    flex-grow: 1;
+    height: 4px;
+    background: var(--surface-2);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.cw-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.cw-cancel-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 2px;
+}
+
+    .cw-cancel-btn:hover {
+        color: var(--danger);
+    }

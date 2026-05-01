@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EchidnaJav.Core.Domain.States;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Channels;
@@ -14,15 +15,17 @@ namespace EchidnaJav.Core.Infrastructure.Services
     public class ActressScrapeQueue : IActressScrapeQueue
     {
         private readonly Channel<string> _queue;
+        private readonly ScraperActressState _state;
 
-        public ActressScrapeQueue()
-        {
-            // Unbounded means it can hold as many actresses as you find
+        public ActressScrapeQueue(ScraperActressState state)
+        {   
+            _state = state;
             _queue = Channel.CreateUnbounded<string>();
         }
 
         public async ValueTask QueueActressAsync(string actressName)
         {
+            _state.AddToQueue();
             await _queue.Writer.WriteAsync(actressName);
         }
 

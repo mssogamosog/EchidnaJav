@@ -58,6 +58,7 @@ namespace EchidnaJav
             builder.Services.AddHttpClient<IImageService, ImageService>();
             builder.Services.AddSingleton<IActressScrapeQueue, ActressScrapeQueue>();
             builder.Services.AddHostedService<ActressScraperWorker>();
+            builder.Services.AddSingleton<ScraperActressState>();
             builder.Services.AddHttpClient();
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {

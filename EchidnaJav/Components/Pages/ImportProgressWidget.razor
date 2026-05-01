@@ -1,0 +1,62 @@
+﻿@using EchidnaJav.Core.Domain.States
+@inject ImportState ImportState
+@implements IDisposable
+
+@if (ImportState.IsRunning)
+{
+    <div class="compact-widget @(isMinimized ? "minimized" : "")">
+        <div class="cw-header">
+            <span class="cw-title">@ImportState.Progress.Status</span>
+            
+            @* 🔥 Dynamically change the text based on minimized state *@
+            <span class="cw-count">
+                @(isMinimized
+                    ? $"{ImportState.Progress.Processed} / {ImportState.Progress.Total}"
+                    : $"{ImportState.Progress.Processed} / {ImportState.Progress.Total}")
+            </span>
+
+            <button class="cw-toggle-btn" @onclick="ToggleMinimize" title="Toggle Size">
+                @(isMinimized ? "+" : "−")
+            </button>
+        </div>
+
+        @if (!isMinimized)
+        {
+            <div class="cw-body">
+                <div class="cw-filename" title="@ImportState.Progress.CurrentMovieId">
+                    @(string.IsNullOrEmpty(ImportState.Progress.CurrentMovieId) ? "Scanning..." : ImportState.Progress.CurrentMovieId)
+                </div>
+                <div class="cw-bottom-row">
+                    <div class="cw-track">
+                        <div class="cw-fill" style="width: @($"{Percentage}%")"></div>
+                    </div>
+                    <button class="cw-cancel-btn" @onclick="CancelImport" title="Cancel">✖</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool isMinimized = false;
+
+    private int RemainingAmount => Math.Max(0, ImportState.Progress.Total - ImportState.Progress.Processed);
+
+    private int Percentage => ImportState.Progress.Total == 0
+            ? 0
+            : (int)((ImportState.Progress.Processed * 100.0) / ImportState.Progress.Total);
+
+    protected override void OnInitialized() => ImportState.OnChange += SafeStateHasChanged;
+    public void Dispose() => ImportState.OnChange -= SafeStateHasChanged;
+
+    private void SafeStateHasChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            try { StateHasChanged(); } catch { }
+        });
+    }
+
+    private void ToggleMinimize() => isMinimized = !isMinimized;
+    private void CancelImport() => ImportState.Cts?.Cancel();
+}
