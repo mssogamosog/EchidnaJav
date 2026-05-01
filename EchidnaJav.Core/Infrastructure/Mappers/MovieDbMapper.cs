@@ -1,5 +1,6 @@
 ﻿using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -46,9 +47,26 @@ namespace EchidnaJav.Core.Infrastructure.Mappers
 
                 if (!genreCache.TryGetValue(key, out var genre))
                 {
+                    // 1. Not in cache at all. Create and INSERT.
                     genre = new Genre { Name = mg.Genre.Name };
                     db.Genres.Add(genre);
                     genreCache[key] = genre;
+                }
+                else
+                {
+                    // 2. Found in cache. Check if EF is already tracking it
+                    if (db.Entry(genre).State == EntityState.Detached)
+                    {
+                        // 🔥 THE FIX: Check if it's a brand new (unsaved) object or an existing DB record
+                        if (genre.Id == 0)
+                        {
+                            db.Genres.Add(genre); // It has no DB ID yet. Tell EF to insert it.
+                        }
+                        else
+                        {
+                            db.Attach(genre); // It has an ID. Tell EF it already exists.
+                        }
+                    }
                 }
 
                 dbMovie.MovieGenres.Add(new MovieGenre
@@ -65,10 +83,28 @@ namespace EchidnaJav.Core.Infrastructure.Mappers
 
                 if (!actressCache.TryGetValue(key, out var actress))
                 {
+                    // 1. Not in cache at all. Create and INSERT.
                     actress = new Actress { Name = ma.Actress.Name };
                     db.Actresses.Add(actress);
                     actressCache[key] = actress;
                 }
+                else
+                {
+                    // 2. Found in cache. Check if EF is already tracking it
+                    if (db.Entry(actress).State == EntityState.Detached)
+                    {
+                        // 🔥 THE FIX: Did this come from the scraper or the database?
+                        if (actress.Id == 0)
+                        {
+                            db.Actresses.Add(actress); // Came from scraper (unsaved). Insert it.
+                        }
+                        else
+                        {
+                            db.Attach(actress); // Came from initial DB load. Attach it.
+                        }
+                    }
+                }
+
                 dbMovie.MovieActresses.Add(new MovieActress
                 {
                     Movie = dbMovie,

@@ -56,11 +56,13 @@ namespace EchidnaJav
             builder.Services.AddScoped<IActressScraper, ActressJavModel>();
             builder.Services.AddScoped<IFileUtilityService, FileUtilityService>();
             builder.Services.AddHttpClient<IImageService, ImageService>();
+            builder.Services.AddSingleton<IActressScrapeQueue, ActressScrapeQueue>();
+            builder.Services.AddHostedService<ActressScraperWorker>();
             builder.Services.AddHttpClient();
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
                 var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");
-                options.UseSqlite($"Data Source={dbPath}");
+                options.UseSqlite($"Data Source={dbPath};Cache=Shared;");
                 //Process.Start("explorer.exe", FileSystem.AppDataDirectory);
             });
             
@@ -71,9 +73,16 @@ namespace EchidnaJav
 #endif
 
             var app = builder.Build();
+            var hostedServices = app.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
+            var scraperWorker = hostedServices.OfType<ActressScraperWorker>().FirstOrDefault();
 
+            if (scraperWorker != null)
+            {
+                // Fire and forget the StartAsync method
+                _ = scraperWorker.StartAsync(CancellationToken.None);
+            }
 
-            using(var scope = app.Services.CreateScope())
+            using (var scope = app.Services.CreateScope())
             {
                 var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
                 using var db = factory.CreateDbContext();

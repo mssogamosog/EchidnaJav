@@ -29,6 +29,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         private readonly ILocalMediaScanner _localMediaScanner;
         private readonly INfoParserService _nfoParserService;
         private readonly IScrapeService _scrapeService;
+        private readonly IActressScrapeQueue _actressQueue;
         private readonly ConcurrentDictionary<string, bool> _queuedImages = new();
 
         public ImportService(
@@ -38,12 +39,14 @@ namespace EchidnaJav.Core.Infrastructure.Services
             IImageService imageService,
             ILocalMediaScanner localMediaScanner,
             INfoParserService nfoParserService,
-            IScrapeService scrapeService)
+            IScrapeService scrapeService,
+            IActressScrapeQueue actressQueue)
         {
             _dbFactory = dbFactory;
             _logger = logger;
             _movieDbMapper = movieDbMapper;
             _scrapeService = scrapeService;
+            _actressQueue = actressQueue;
             _nfoParserService = nfoParserService;
             _localMediaScanner = localMediaScanner;
             _imageService = imageService;
@@ -56,11 +59,12 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
             int total = groups.Count;
             int processed = 0; // Shared counter
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             void Report(string status, string? movieId)
             {
                 var current = Interlocked.Increment(ref processed);
 
-                if (current % 10 == 0 || current == total || status == "Failed")
+                if (stopwatch.ElapsedMilliseconds > 250 || current == total || status == "Failed")
                 {
                     progress?.Report(new ImportProgress
                     {
@@ -69,6 +73,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         CurrentMovieId = movieId,
                         Status = status
                     });
+
+                    // Reset the clock
+                    stopwatch.Restart();
                 }
             }
 
@@ -107,12 +114,13 @@ namespace EchidnaJav.Core.Infrastructure.Services
             {
                 try
                 {
-                   
+                    using var db = _dbFactory.CreateDbContext();
+
+                    var genreCache = await db.Genres.AsNoTracking().ToDictionaryAsync(g => g.Name.ToLower(), ct);
+                    var actressCache = await db.Actresses.AsNoTracking().ToDictionaryAsync(a => a.Name.ToLower(), ct);
                     await foreach (var movie in channel.Reader.ReadAllAsync(ct))
                     {
-                        using var db = _dbFactory.CreateDbContext();
-                        var genreCache = await db.Genres.ToDictionaryAsync(g => g.Name.ToLower(), ct);
-                        var actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                        
                         try
                         {                          
 
@@ -124,38 +132,27 @@ namespace EchidnaJav.Core.Infrastructure.Services
                                 Report("Skipped (Exists)", movie.Id);
                                 continue;
                             }
+                            var actressesToQueue = new List<string>();
                             if (movie.MovieActresses != null && movie.MovieActresses.Any())
                             {
                                 foreach (var ma in movie.MovieActresses)
                                 {
-                                    // Your NFO parser likely populates the Actress navigation property with her name
                                     string actorName = ma.Actress?.Name;
+                                    if (string.IsNullOrWhiteSpace(actorName)) continue;
 
-                                    if (string.IsNullOrWhiteSpace(actorName))
+                                    string actorNameLower = actorName.ToLower();
+
+                                    if (actressCache.ContainsKey(actorNameLower) || newlyScrapedActresses.ContainsKey(actorName))
                                         continue;
 
-                                    // 1. Skip if she is already in the database
-                                    if (actressCache.ContainsKey(actorName.ToLower()))
-                                        continue;
-
-                                    // 2. Skip if we already scraped her in a previous loop this session
-                                    if (newlyScrapedActresses.ContainsKey(actorName))
-                                        continue;
-
-                                    // 3. We have a new actress! Scrape her.
-                                    _logger.LogInformation($"New actress detected: {actorName}. Initiating scraper...");
-
-                                    var scrapedData = new ActressData { Name = actorName };
-
-                                    // Scrape using English by default (or pull from your settings)
-                                    await _scrapeService.ScrapeActressAsync(scrapedData, LanguageType.English);
-
-                                    // 4. Mark her as processed so we don't scrape her again for the next movie
+                                    // 1. Create a blank "shell" actress to satisfy the database relationship
+                                    var shellActress = new Actress { Name = actorName };
+                                    actressCache[actorNameLower] = shellActress;
                                     newlyScrapedActresses.Add(actorName, true);
-                                }
 
-                                // Refresh the actress cache so the Mapper knows about the newly scraped actresses
-                                actressCache = await db.Actresses.ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                                    // 2. Toss the name over the wall to the background worker to deal with later!
+                                    actressesToQueue.Add(actorName);
+                                }
                             }
                             var dbMovie = _movieDbMapper.MapToDbMovie(movie, db, genreCache, actressCache);
                             var bestImage = _imageService.GetBestImage(movie);
@@ -163,6 +160,10 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                             db.Movies.Add(dbMovie);
                             await db.SaveChangesAsync(ct);
+                            foreach (var actorName in actressesToQueue)
+                            {
+                                await _actressQueue.QueueActressAsync(actorName);
+                            }
 
                             if (bestImage != null && _queuedImages.TryAdd(bestImage, true))
                             {
@@ -174,14 +175,15 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                             //_logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
                         }
-                        catch (OperationCanceledException)
-                        {
-                            throw; // Let the outer block catch the cancellation
-                        }
                         catch (Exception ex)
                         {
                             Report("Failed", movie?.Id);
                             _logger.LogError(ex, $"❌ Failed saving movie {movie?.Id}");
+                        }
+                        finally
+                        {
+                            
+                            db.ChangeTracker.Clear();
                         }
                     }
                 }
