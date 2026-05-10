@@ -27,7 +27,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         Task GenerateImagesAsync(string originalPath);
         string? GetBestImage(Movie movie);
         Task<string?> GetImageAsync(string originalPath, ImageType type);
-        Task<bool> DownloadImageAsync( string destinationPath, string imageUrl);
+        Task<string?> DownloadImageAsync( string destinationPath, string imageUrl);
     }
 
     public class ImageService : IImageService
@@ -188,24 +188,44 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 .FirstOrDefault();
         }
 
-        public async Task<bool> DownloadImageAsync(string targetFilePath, string sourceUrl)
+        public async Task<string?> DownloadImageAsync(string destFolder, string sourceUrl)
         {
-            if (string.IsNullOrEmpty(sourceUrl) || string.IsNullOrEmpty(targetFilePath))
-                return false;
+            if (string.IsNullOrEmpty(sourceUrl) || string.IsNullOrEmpty(destFolder))
+                return null;
 
-            // Ensure proper URL formatting
             if (!sourceUrl.StartsWith("http"))
                 sourceUrl = "http:" + sourceUrl;
 
-            // Ensure the target file has the correct extension based on the source URL
-            string finalFilePath = Path.ChangeExtension(targetFilePath, Path.GetExtension(sourceUrl));
+            // ==========================================
+            // 🔥 1. HASH THE URL FOR THE FILENAME
+            // ==========================================
+            using var sha1 = SHA1.Create();
+            var hashBytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(sourceUrl));
+            var hashHex = Convert.ToHexString(hashBytes);
+
+            string extension = Path.GetExtension(sourceUrl);
+            if (string.IsNullOrEmpty(extension)) extension = ".jpg"; // fallback
+
+            string finalFilePath = Path.Combine(destFolder, $"{hashHex}{extension}");
+
+            // ==========================================
+            // 🔥 2. CHECK BEFORE DOWNLOADING
+            // ==========================================
+            if (File.Exists(finalFilePath))
+            {
+                _logger.LogInformation($"URL already downloaded. Skipping network request: {sourceUrl}");
+                return finalFilePath; // Return the path so the caller can save it to the DB!
+            }
+
+            // ==========================================
+            // 3. PROCEED WITH DOWNLOAD
+            // ==========================================
             string tempFileName = Path.GetTempFileName();
 
             try
             {
                 _logger.LogInformation($"Downloading image from {sourceUrl}");
 
-                // 1. Download the file to a temporary location using HttpClient
                 using (var response = await _httpClient.GetAsync(sourceUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
                     response.EnsureSuccessStatusCode();
@@ -213,55 +233,33 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     await response.Content.CopyToAsync(fs);
                 }
 
-                // 2. Check if it's a banned "Unknown Actress" image
+                // Check if it's a banned "Unknown Actress" image
                 if (IsBannedFile(tempFileName))
                 {
                     _logger.LogWarning("Downloaded image matches a banned checksum. Discarding.");
                     File.Delete(tempFileName);
-                    return false;
+                    return null;
                 }
 
-                // 3. Load the new image with ImageSharp to inspect its quality
+                // Load the new image with ImageSharp to inspect its quality
                 var newImageInfo = await Image.IdentifyAsync(tempFileName);
-
                 if (newImageInfo.Width < 150 || newImageInfo.Height < 220)
                 {
                     _logger.LogInformation("Downloaded image is too small. Discarding.");
                     File.Delete(tempFileName);
-                    return false;
+                    return null;
                 }
-                string? destFolder = Path.GetDirectoryName(finalFilePath);
-                if (!string.IsNullOrEmpty(destFolder) && !Directory.Exists(destFolder))
+
+                if (!Directory.Exists(destFolder))
                 {
                     Directory.CreateDirectory(destFolder);
                 }
-                // 4. If the file already exists, compare resolutions
-                if (File.Exists(finalFilePath))
-                {
-                    var currentInfo = await Image.IdentifyAsync(finalFilePath);
 
-                    double currentPixels = currentInfo.Width * currentInfo.Height;
-                    double newPixels = newImageInfo.Width * newImageInfo.Height;
-
-                    if (newPixels > currentPixels)
-                    {
-                        _logger.LogInformation($"New image ({newImageInfo.Width}x{newImageInfo.Height}) is larger. Replacing.");
-                        File.Delete(finalFilePath);
-                        File.Move(tempFileName, finalFilePath);
-                        return true;
-                    }
-                    else
-                    {
-                        _logger.LogInformation("Existing image is larger or equal. Keeping existing.");
-                        File.Delete(tempFileName);
-                        return false;
-                    }
-                }
-
-                // 5. If no existing file, just save the new one
+                // Move temp file to final hashed path
                 File.Move(tempFileName, finalFilePath);
                 _logger.LogInformation($"Successfully saved new image to {finalFilePath}");
-                return true;
+
+                return finalFilePath;
             }
             catch (Exception ex)
             {
@@ -269,10 +267,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 if (File.Exists(tempFileName))
                     File.Delete(tempFileName);
 
-                return false;
+                return null;
             }
         }
-
         private bool IsBannedFile(string filename)
         {
             string checksum = GetSHA1Checksum(filename);

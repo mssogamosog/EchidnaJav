@@ -45,8 +45,6 @@ namespace EchidnaJav.Scraper
         // 1. The main entry point is now Async
         public async Task<ActressData> ScrapeActressAsync(ActressData actressData, LanguageType language)
         {
-            _logger.LogInformation("Attempting to scrape information for " + actressData.Name);
-
             
             foreach (var scraper in _scrapers)
             {
@@ -69,7 +67,6 @@ namespace EchidnaJav.Scraper
             return actressData;
         }
 
-        // 3. The module executor is also Async
         private async Task<ActressData> ScrapeActressModuleAsync(IActressScraper module, ActressData actressData, LanguageType language)
         {
            // if (IsActressDataComplete(actressData))
@@ -85,19 +82,12 @@ namespace EchidnaJav.Scraper
         }
         private async Task DownloadActressImageAsync(ActressData actressData, IActressScraper module)
         {
-            if (String.IsNullOrEmpty(module.ImageSource) == false)
+            if (!string.IsNullOrEmpty(module.ImageSource))
             {
-                // Create destination filename and path
-                string actressImagefolder = _cacheFolder;
-                string actressImagePath = Path.Combine(actressImagefolder, Guid.NewGuid().ToString());
-
-                // Download image
-                if (await _imageService.DownloadImageAsync(actressImagePath, module.ImageSource))
+                string? finalPath = await _imageService.DownloadImageAsync(_cacheFolder, module.ImageSource);
+                if (!string.IsNullOrEmpty(finalPath))
                 {
-                    string finalExt = Path.GetExtension(module.ImageSource);
-                    string finalFileName = Path.GetFileName(actressImagePath) + finalExt;
-                    string fullPath = Path.Combine(_cacheFolder, finalFileName);
-                    actressData.ImageFileNames.Add(fullPath);
+                    actressData.ImageFileNames.Add(finalPath);
                 }
             }
         }

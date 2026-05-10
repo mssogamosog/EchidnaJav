@@ -209,7 +209,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                         if (nfoFile != null)
                         {
-                            // Passing movieId as fallback to prevent null IDs!
+
                             var movie = await _nfoParserService.ParseNfoAsync(nfoFile);
 
                             if (movie != null)
@@ -262,9 +262,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 {
                     await consumerTask;
                 }
-                catch
-                {
-                }
+                catch{}
                 finally
                 {
                     imageWriter.TryComplete();

@@ -52,6 +52,9 @@ namespace EchidnaJav.Test
         [Theory]
         [InlineData("abc 123d", "ABC-123D")]
         [InlineData("[abc12-123d]", "ABC12-123D")]
+
+        [InlineData("sivr158D", "sivr-158D")]
+
         public void Parse_WithSuffixD(string input, string expected)
         {
             var result = _service.ParseMovieID(input);

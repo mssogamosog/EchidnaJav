@@ -39,6 +39,8 @@
 
 @code {
     private bool isMinimized = false;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource _cts = new();
 
     private int RemainingAmount => Math.Max(0, ImportState.Progress.Total - ImportState.Progress.Processed);
 
@@ -46,15 +48,37 @@
             ? 0
             : (int)((ImportState.Progress.Processed * 100.0) / ImportState.Progress.Total);
 
-    protected override void OnInitialized() => ImportState.OnChange += SafeStateHasChanged;
-    public void Dispose() => ImportState.OnChange -= SafeStateHasChanged;
-
-    private void SafeStateHasChanged()
+    protected override void OnInitialized()
     {
-        _ = InvokeAsync(() =>
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
+        _ = StartPolling();
+    }
+
+    private async Task StartPolling()
+    {
+        try
         {
-            try { StateHasChanged(); } catch { }
-        });
+            bool wasRunning = false;
+            
+            while (await _timer!.WaitForNextTickAsync(_cts.Token))
+            {
+                bool isRunning = ImportState.IsRunning;
+                if (isRunning || wasRunning)
+                {
+                    await InvokeAsync(StateHasChanged);
+                }
+                
+                // Remember the state for the next tick
+                wasRunning = isRunning;
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        _timer?.Dispose();
     }
 
     private void ToggleMinimize() => isMinimized = !isMinimized;

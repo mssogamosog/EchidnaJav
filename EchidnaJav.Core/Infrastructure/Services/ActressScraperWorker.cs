@@ -33,7 +33,6 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("🚀 Background Actress Scraper Started.");
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -58,16 +57,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                     await scrapeService.ScrapeActressAsync(scrapedData, LanguageType.English);
 
-                    dbActress.JapaneseName = scrapedData.JapaneseName;
-                    dbActress.DobYear = scrapedData.DobYear;
-                    dbActress.Height = scrapedData.Height;
-                    dbActress.Bust = scrapedData.Bust;
-                    dbActress.Waist = scrapedData.Waist;
-                    dbActress.Hips = scrapedData.Hips;
-                    dbActress.Cup = scrapedData.Cup;
-
-
-                    await db.SaveChangesAsync(stoppingToken);
+                   
                     _logger.LogInformation($"✅ Finished updating: {actressName}");
                 }
                 catch (OperationCanceledException)

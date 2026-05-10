@@ -12,7 +12,7 @@
             <span class="cw-count">
                 @(isMinimized
                     ? $"{ScraperState.ProcessedCount} / {ScraperState.RemainingCount}"
-                    : $"{ScraperState.ProcessedCount} / {ScraperState.TotalQueued}")
+                    : $"{ScraperState.ProcessedCount} / {ScraperState.RemainingCount}")
             </span>
 
             <button class="cw-toggle-btn" @onclick="ToggleMinimize" title="Toggle Size">
@@ -32,15 +32,49 @@
 }
 
 @code {
-    private bool isMinimized = true; // Starts minimized to be compact by default
+    private bool isMinimized = false;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource _cts = new();
 
     private double Percentage => ScraperState.TotalQueued == 0
         ? 0
         : ((double)ScraperState.ProcessedCount / ScraperState.TotalQueued) * 100;
 
-    protected override void OnInitialized() => ScraperState.OnChange += SafeStateHasChanged;
-    public void Dispose() => ScraperState.OnChange -= SafeStateHasChanged;
+    protected override void OnInitialized()
+    {
+        // 🔥 THE FIX: We no longer subscribe to OnChange.
+        // Instead, we start a steady 300ms heartbeat.
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
+        _ = StartPolling();
+    }
 
-    private void SafeStateHasChanged() => InvokeAsync(StateHasChanged);
+    private async Task StartPolling()
+    {
+        try
+        {
+            bool wasProcessing = false;
+            
+            while (await _timer!.WaitForNextTickAsync(_cts.Token))
+            {
+                bool isProcessing = ScraperState.IsProcessing;
+                
+                if (isProcessing || wasProcessing)
+                {
+                    await InvokeAsync(StateHasChanged);
+                }
+                wasProcessing = isProcessing;
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose()
+    {
+        // Clean up the timer when the widget is destroyed
+        _cts.Cancel();
+        _cts.Dispose();
+        _timer?.Dispose();
+    }
+
     private void ToggleMinimize() => isMinimized = !isMinimized;
 }
