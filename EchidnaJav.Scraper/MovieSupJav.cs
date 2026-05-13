@@ -2,6 +2,7 @@
 using AngleSharp.Html.Dom;
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Infrastructure.Services;
+using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
 using System;
@@ -139,7 +140,7 @@ namespace EchidnaJav.Scraper
                     string rawName = anchor.TextContent.Trim();
                     if (!string.IsNullOrEmpty(rawName))
                     {
-                        string cleanName = ReverseNames(rawName);
+                        string cleanName = ActorMatchingEngine.ReverseNames(rawName);
                         if (!Metadata.Actors.Any(a => a.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase)))
                         {
                             Metadata.Actors.Add(new ActorData
@@ -165,13 +166,7 @@ namespace EchidnaJav.Scraper
 
             m_parsingSuccessful = true;
         }
-        private string ReverseNames(string name)
-        {
-            var splitNames = name.Trim().Split(' ');
-            if (splitNames.Count() == 2)
-                return splitNames[1] + " " + splitNames[0];
-            return name;
-        }
+        
         private bool CheckResultsPage(IHtmlDocument document)
         {
             var header = document.QuerySelector("div.archive-title > h1");

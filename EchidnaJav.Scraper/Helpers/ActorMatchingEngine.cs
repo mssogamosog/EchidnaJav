@@ -164,6 +164,14 @@ namespace EchidnaJav.Scraper.Helpers
             return Math.Max(Math.Min(matchVal, 1.0f), 0.0f);
         }
 
+        public static string ReverseNames(string name)
+        {
+            var splitNames = name.Trim().Split(' ');
+            if (splitNames.Count() == 2)
+                return splitNames[1] + " " + splitNames[0];
+            return name;
+        }
+
         private static bool HasSimilarMatch(string s, List<string>? strings, float threshold) =>
             strings != null && strings.Any(str => GetSimilarity(s, str) > threshold);
 

@@ -7,6 +7,36 @@ namespace EchidnaJav.Scraper.Helpers
 {
     public static class MetadataMerger
     {
+        public static MovieMetadata MergePrimary(MovieMetadata? fallbackSource, MovieMetadata? primarySource)
+        {
+            if (fallbackSource == null) return primarySource ?? new MovieMetadata();
+            if (primarySource == null) return fallbackSource;
+
+            var combined = new MovieMetadata
+            {
+                UniqueID = primarySource.UniqueID,
+                // Prefer primarySource (JavDatabase) for titles
+                Title = Coalesce(primarySource.Title, fallbackSource.Title),
+                // For all other info, prefer fallbackSource (JavLibrary)
+                OriginalTitle = Coalesce(fallbackSource.OriginalTitle, primarySource.OriginalTitle),
+                Premiered = Coalesce(fallbackSource.Premiered, primarySource.Premiered),
+                Year = fallbackSource.Year == 0 ? primarySource.Year : fallbackSource.Year,
+                Studio = Coalesce(fallbackSource.Studio, primarySource.Studio),
+                Label = Coalesce(fallbackSource.Label, primarySource.Label),
+                Runtime = fallbackSource.Runtime == 0 ? primarySource.Runtime : fallbackSource.Runtime,
+                Director = Coalesce(fallbackSource.Director, primarySource.Director),
+                Series = Coalesce(fallbackSource.Series, primarySource.Series),
+
+                Genres = fallbackSource.Genres
+                    .Union(primarySource.Genres, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+
+                // Scrape actress data from primarySource first, merge alternate names/actors later
+                Actors = MergeActorLists(primarySource.Actors?.ToList(), fallbackSource.Actors)
+            };
+
+            return combined;
+        }
         public static MovieMetadata MergeSecondary(MovieMetadata primary, MovieMetadata secondary)
         {
             if (primary == null) return secondary;

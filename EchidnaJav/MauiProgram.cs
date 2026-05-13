@@ -91,6 +91,8 @@ namespace EchidnaJav
             builder.Services.AddScoped<IMovieScrapeService, MovieScrapeService>();
             builder.Services.AddTransient<MovieJavDatabase>();
             builder.Services.AddTransient<MovieSupJav>();
+            builder.Services.AddTransient<MovieJavTiful>();
+            builder.Services.AddTransient<MovieMissAv>();
             builder.Services.AddSingleton<ISilentWebViewSandbox, SilentWebViewSandbox>();
             // Add your other specific movie scrapers here if needed (e.g., MovieR18Dev, MovieSupJav)
 
