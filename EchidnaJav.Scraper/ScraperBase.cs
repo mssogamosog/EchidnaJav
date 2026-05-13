@@ -1,6 +1,9 @@
-﻿using AngleSharp.Html.Dom;
+﻿using AngleSharp.Browser;
+using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using EchidnaJav.Core.Domain.DTOs;
+using EchidnaJav.Scraper.Interfaces;
+using EchidnaJav.Scraper.Services;
 using EchidnaJav.Scraper.Views;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
@@ -9,39 +12,46 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+
 namespace EchidnaJav.Scraper
 {
-
-    abstract public class ScraperBase
+    public abstract class ScraperBase : IScraper
     {
         private readonly ILogger<ScraperBase> _logger;
-        protected static CookieContainer _sharedCookies = new CookieContainer();
-        protected static HttpClient _httpClient;
-        protected static string _webViewUserAgent = string.Empty;     
+        protected static readonly CookieContainer _sharedCookies = new CookieContainer();
+        protected static HttpClient? _httpClient;
+        protected static string _webViewUserAgent = string.Empty;
+        private readonly ISilentWebViewSandbox _sandbox;
+
         protected LanguageType m_language;
         protected bool m_parsingSuccessful = false;
         protected virtual bool EnableCloudflareHandling => true;
-        public string ImageSource { get; protected set; }
-        public bool SearchNotFound { get; protected set; }
-        public ScraperBase(ILogger<ScraperBase> logger)
-        {
-            _logger = logger;
-            ImageSource = string.Empty;
 
+        public string ImageSource { get; protected set; } = string.Empty;
+        public bool SearchNotFound { get; protected set; }
+
+        public ScraperBase(ILogger<ScraperBase> logger , ISilentWebViewSandbox sandbox)
+        {
+            _logger = logger ;
+            _sandbox = sandbox;
             if (_httpClient == null)
             {
-                var handler = new HttpClientHandler { CookieContainer = _sharedCookies };
+                var handler = new HttpClientHandler
+                {
+                    CookieContainer = _sharedCookies,
+                    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+                };
                 _httpClient = new HttpClient(handler);
             }
-        }      
+        }
 
-        abstract public Task ScrapeAsync(string actressName, LanguageType language);
-        abstract protected bool IsLanguageSupported();
-        abstract protected bool IsValidDataParsed();
-        abstract protected void ParseDocument(IHtmlDocument document);
+        protected abstract bool IsLanguageSupported();
+        protected abstract bool IsValidDataParsed();
+        protected abstract void ParseDocument(IHtmlDocument document);
+
         protected async Task ScrapeWebsiteAsync(string siteURL)
         {
-            _logger.LogInformation("Scraping website for data: " + siteURL);
+            _logger.LogInformation($"Scraping website for data: {siteURL}");
 
             bool parseError = false;
             int loadCounter = 0;
@@ -50,48 +60,66 @@ namespace EchidnaJav.Scraper
             do
             {
                 string html = string.Empty;
+                bool requiresNativeSocketBypass = false;
 
                 try
                 {
-                    // 1. THE FAST PATH: Try HttpClient first
+                    // 1. THE FAST PATH: Try pure HttpClient first
                     html = await FastHttpScrapeAsync(siteURL);
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden || ex.StatusCode == HttpStatusCode.ServiceUnavailable)
                 {
-                    // Cloudflare often returns 403 or 503 when challenging
-                    _logger.LogWarning($"HTTP blocked (Possible Cloudflare). Starting WebView fallback for {siteURL}");
+                    _logger.LogWarning($"HTTP 403/503 blocked. Pivoting to background native socket bypass for {siteURL}");
+                    // Flag that we need to fetch via the OS engine, but DO NOT push a UI page yet.
+                    requiresNativeSocketBypass = true;
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
                 {
-                    // 🔥 NEW: Gracefully handle 404s!
-                    _logger.LogInformation($"Actress page not found (404) at {siteURL}. She might be new or unlisted.");
+                    _logger.LogInformation($"Page not found (404) at {siteURL}.");
                     SearchNotFound = true;
-                    break; // Break completely out of the do-while loop!
+                    break;
                 }
                 catch (HttpRequestException ex)
                 {
-                    // Catch any other weird network errors (like timeouts) so they don't crash the import
                     _logger.LogError(ex, $"Network error while scraping {siteURL}");
                     parseError = true;
                     break;
                 }
 
+                // 2. SILENT BACKGROUND BYPASS: Executed if HTTP was blocked by advanced TLS/Referer checks
+                if (requiresNativeSocketBypass)
+                {
+                    try
+                    {
+                        // Execute traversal using an off-screen native engine without touching the visual navigation stack
+                        html = await _sandbox.ExecuteSilentExtractionAsync(siteURL);
+                        
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to execute silent background WebView extraction.");
+                        parseError = true;
+                        break;
+                    }
+                }
+
+                // Parse the initial payload returned by either method
                 var parser = new HtmlParser();
                 var document = await parser.ParseDocumentAsync(html ?? string.Empty);
 
-                // 2. THE SLOW PATH: Check if we are still trapped by Cloudflare
+                // 3. EXPLICIT CAPTCHA INTERCEPT: Pushes visual UI ONLY if a definitive Captcha is detected in the DOM
                 if (EnableCloudflareHandling && IsCloudflarePage(document))
                 {
-                    _logger.LogWarning("Cloudflare challenge detected in HTML! Requesting User Intervention...");
+                    _logger.LogWarning("Definitive Cloudflare Captcha detected in HTML! Pushing UI Solver modally...");
 
-                    // Pop the UI and solve
+                    // This is the ONLY place where a UI page is pushed to the screen
                     await ResolveCloudflareViaUIAsync(siteURL);
 
-                    // Loop restarts, and FastHttpScrapeAsync will now use the new cookies!
-                    continue;
+                    loadCounter++;
+                    continue; // Loop restarts, utilizing verified clearance cookies internally
                 }
 
-                // 3. Parse Data
+                // 4. Standard Parsing Execution
                 if (document != null && !string.IsNullOrEmpty(html))
                 {
                     try
@@ -99,7 +127,7 @@ namespace EchidnaJav.Scraper
                         ParseDocument(document);
                     }
                     catch (Exception ex)
-                    {   
+                    {
                         _logger.LogError(ex, "HTML document parsing exception");
                         parseError = true;
                         break;
@@ -110,55 +138,59 @@ namespace EchidnaJav.Scraper
             }
             while (!parseError && !IsValidDataParsed() && loadCounter <= browserRetries);
         }
+
+      
         private async Task<string> FastHttpScrapeAsync(string url)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
 
-            // Critical: Mask our HttpClient to look exactly like the WebView
             if (!string.IsNullOrEmpty(_webViewUserAgent))
-            {
                 request.Headers.Add("User-Agent", _webViewUserAgent);
-            }
             else
-            {
-                // Sensible default until we grab the real one from the device
                 request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            }
 
             request.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
             request.Headers.Add("Accept-Language", "en-US,en;q=0.5");
 
-            var response = await _httpClient.SendAsync(request);
+            CustomizeHttpRequest(request, url);
 
-            // Will throw if 403/503 Cloudflare block
+            var response = await _httpClient!.SendAsync(request);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadAsStringAsync();
         }
 
+        protected virtual void CustomizeHttpRequest(HttpRequestMessage request, string targetUrl) { }
+
+        /// <summary>
+        /// Pushes the UI view onto the main screen explicitly to allow manual Captcha interaction.
+        /// </summary>
         private async Task ResolveCloudflareViaUIAsync(string url)
         {
-            CloudflareSolverPage solverPage = null;
+            CloudflareSolverPage? solverPage = null;
 
-            // 1. Push the Modal onto the screen (Must be on MainThread)
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 solverPage = new CloudflareSolverPage(url);
 
-                // Find the current main page to push the modal
-                var currentPage = Application.Current.MainPage;
-                if (currentPage is NavigationPage navPage)
-                    currentPage = navPage.CurrentPage;
+                var rootPage = Application.Current?.MainPage;
+                if (rootPage is NavigationPage navPage)
+                    rootPage = navPage.CurrentPage;
 
-                await currentPage.Navigation.PushModalAsync(solverPage);
+                if (rootPage != null)
+                {
+                    // Explicitly push modally to guarantee overlay execution
+                    await rootPage.Navigation.PushModalAsync(solverPage);
+                }
             });
 
-            // 2. Wait indefinitely until the user solves it (or cancels)
+            if (solverPage == null) return;
+
+            // Pause background execution thread until visual resolution completes
             bool wasSolved = await solverPage.SolutionTask;
 
             if (wasSolved)
             {
-                // 3. THE HEIST: Steal the Cookies and User-Agent on the MainThread
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
                     var data = await solverPage.ExtractBrowserDataAsync();
@@ -169,14 +201,23 @@ namespace EchidnaJav.Scraper
                     if (!string.IsNullOrEmpty(data.Cookies))
                     {
                         var baseUri = new Uri(url);
+                        string rootDomain = baseUri.Host;
+
                         var cookiePairs = data.Cookies.Split(';');
                         foreach (var pair in cookiePairs)
                         {
                             var split = pair.Split(new[] { '=' }, 2);
                             if (split.Length == 2)
                             {
-                                try { _sharedCookies.Add(baseUri, new Cookie(split[0].Trim(), split[1].Trim())); }
-                                catch { /* Ignore malformed cookies */ }
+                                try
+                                {
+                                    _sharedCookies.Add(new Cookie(split[0].Trim(), split[1].Trim())
+                                    {
+                                        Domain = rootDomain,
+                                        Path = "/"
+                                    });
+                                }
+                                catch { }
                             }
                         }
                     }
@@ -184,17 +225,21 @@ namespace EchidnaJav.Scraper
             }
             else
             {
-                _logger.LogWarning("Cloudflare challenge was canceled by the user.");
+                _logger.LogWarning("Cloudflare Captcha resolution canceled by user.");
             }
 
-            // 4. Close the Modal and resume scraping
+            // Guarantee unmounting from the visual hierarchy
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
-                var currentPage = Application.Current.MainPage;
-                await currentPage.Navigation.PopModalAsync();
+                var rootPage = Application.Current?.MainPage;
+                if (rootPage != null)
+                {
+                    await rootPage.Navigation.PopModalAsync();
+                }
             });
         }
-        protected bool IsCloudflarePage(IHtmlDocument document)
+
+        protected bool IsCloudflarePage(IHtmlDocument? document)
         {
             if (document?.DocumentElement == null) return true;
 
@@ -212,5 +257,4 @@ namespace EchidnaJav.Scraper
                    html.IndexOf("id=\"challenge-running\"", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
-
 }

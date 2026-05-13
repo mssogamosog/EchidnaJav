@@ -42,7 +42,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                     using var scope = _scopeFactory.CreateScope();
                     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
-                    var scrapeService = scope.ServiceProvider.GetRequiredService<IScrapeService>();
+                    var scrapeService = scope.ServiceProvider.GetRequiredService<IScrapeActressService>();
                     var imageService = scope.ServiceProvider.GetRequiredService<IImageService>();
 
                     using var db = dbFactory.CreateDbContext();

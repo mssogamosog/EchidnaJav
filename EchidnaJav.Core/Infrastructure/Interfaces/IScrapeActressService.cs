@@ -5,7 +5,7 @@ using System.Text;
 
 namespace EchidnaJav.Core.Infrastructure.Interfaces
 {
-    public interface IScrapeService
+    public interface IScrapeActressService
     {
         Task<ActressData> ScrapeActressAsync(ActressData actressData, LanguageType language);
     }

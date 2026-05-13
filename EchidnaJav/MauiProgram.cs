@@ -7,25 +7,25 @@ using EchidnaJav.Core.Infrastructure.Persistence;
 using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper;
 using EchidnaJav.Scraper.Interfaces;
+using EchidnaJav.Scraper.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SQLitePCL;
-using System.Diagnostics;
-
 namespace EchidnaJav
 {
     public static class MauiProgram
     {
         public static MauiApp CreateMauiApp()
         {
-            // ✅ Initialize SQLite
+            // ✅ Initialize native SQLite wrapper safely across platforms
             Batteries.Init();
 
             var builder = MauiApp.CreateBuilder();
 
             builder
                 .UseMauiApp<App>()
-                .UseMauiCommunityToolkit() // ✅ only once
+                .UseMauiCommunityToolkit() // Ensure this is only called once
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -33,40 +33,71 @@ namespace EchidnaJav
 
             builder.Services.AddMauiBlazorWebView();
 
-            // ✅ Correct DB path
-           
+            #region Core Infrastructure & State DI
 
-            // ✅ DI
+            builder.Services.AddSingleton<IAppPaths, AppPaths>();
+            builder.Services.AddScoped<IFileUtilityService, FileUtilityService>();
             builder.Services.AddScoped<IMovieIdService, MovieIdService>();
             builder.Services.AddScoped<IImportService, ImportService>();
             builder.Services.AddScoped<IMovieDbMapper, MovieDbMapper>();
-            builder.Services.AddScoped<IImageService, ImageService>();
+            builder.Services.AddScoped<INavigationStateService, NavigationStateService>();
+            builder.Services.AddScoped<ILocalMediaScanner, LocalMediaScanner>();
+            builder.Services.AddScoped<IPlaybackService, PlaybackService>();
+
+            // UI & Runtime States
             builder.Services.AddSingleton<ImportState>();
             builder.Services.AddSingleton<UIState>();
             builder.Services.AddScoped<SearchState>();
-            builder.Services.AddSingleton<IAppPaths, AppPaths>();
-            builder.Services.AddScoped<IMovieRepositoryService, MovieRepositoryService>();
-            builder.Services.AddScoped<INavigationStateService, NavigationStateService>();
-            builder.Services.AddScoped<ILocalMediaScanner, LocalMediaScanner>();
-            builder.Services.AddScoped<INfoParserService, NfoParserService>();
-            builder.Services.AddScoped<IPlaybackService, PlaybackService>();
-            builder.Services.AddScoped<IActressRepositoryService, ActressRepositoryService>();
-            builder.Services.AddScoped<IScrapeService, ScrapeService>();
-            builder.Services.AddScoped<IActressScraper, ActressJavDatabase>();
-            builder.Services.AddScoped<IActressScraper, ActressJavModel>();
-            builder.Services.AddScoped<IFileUtilityService, FileUtilityService>();
-            builder.Services.AddHttpClient<IImageService, ImageService>();
-            builder.Services.AddSingleton<IActressScrapeQueue, ActressScrapeQueue>();
-            builder.Services.AddHostedService<ActressScraperWorker>();
             builder.Services.AddSingleton<ScraperActressState>();
-            builder.Services.AddHttpClient();
+
+            #endregion
+
+            #region Database & Repositories
+
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
             {
                 var dbPath = Path.Combine(FileSystem.AppDataDirectory, "echidnajav.db");
                 options.UseSqlite($"Data Source={dbPath};Cache=Shared;");
-                //Process.Start("explorer.exe", FileSystem.AppDataDirectory);
             });
-            
+
+            builder.Services.AddScoped<IMovieRepositoryService, MovieRepositoryService>();
+            builder.Services.AddScoped<IActressRepositoryService, ActressRepositoryService>();
+
+            #endregion
+
+            #region HTTP & Image Services
+
+            builder.Services.AddHttpClient();
+            builder.Services.AddHttpClient<IImageService, ImageService>();
+            builder.Services.AddScoped<IImageService, ImageService>();
+
+            #endregion
+
+            #region Scraping Pipelines & Workers
+
+            // 1. NFO Parsers & Generators
+            builder.Services.AddScoped<INfoParserService, NfoParserService>();
+            builder.Services.AddScoped<INfoGeneratorService, NfoGeneratorService>();
+
+            // 2. Actress Scraping Engine
+            builder.Services.AddScoped<IScrapeActressService, ActressScrapeService>();
+            builder.Services.AddScoped<IActressScraper, ActressJavDatabase>();
+            builder.Services.AddScoped<IActressScraper, ActressJavModel>();
+
+            builder.Services.AddSingleton<IActressScrapeQueue, ActressScrapeQueue>();
+            builder.Services.AddHostedService<ActressScraperWorker>();
+
+            // 3. Movie Scraping Engine (FIXED: Added missing orchestrator and modules)
+            builder.Services.AddScoped<IMovieScrapeService, MovieScrapeService>();
+            builder.Services.AddTransient<MovieJavDatabase>();
+            builder.Services.AddTransient<MovieSupJav>();
+            builder.Services.AddSingleton<ISilentWebViewSandbox, SilentWebViewSandbox>();
+            // Add your other specific movie scrapers here if needed (e.g., MovieR18Dev, MovieSupJav)
+
+            builder.Services.AddSingleton<IMovieScrapeQueue, MovieScrapeQueue>();
+            builder.Services.AddHostedService<MovieScraperWorker>();
+
+            #endregion
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -74,24 +105,37 @@ namespace EchidnaJav
 #endif
 
             var app = builder.Build();
-            var hostedServices = app.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
-            var scraperWorker = hostedServices.OfType<ActressScraperWorker>().FirstOrDefault();
 
-            if (scraperWorker != null)
-            {
-                // Fire and forget the StartAsync method
-                _ = scraperWorker.StartAsync(CancellationToken.None);
-            }
+            #region Database Initialization
 
             using (var scope = app.Services.CreateScope())
             {
                 var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
                 using var db = factory.CreateDbContext();
 
-                //db.Database.EnsureDeleted();   // 🧨 drops DB
-                db.Database.EnsureCreated();  // 🧱 recreates schema
-                //db.Database.Migrate();
+                // Ensure schema is fully created on app boot
+                db.Database.EnsureCreated();
             }
+
+            #endregion
+
+            #region Background Worker Booting (Safe Threading)
+
+            // OPTIMIZATION: Boot background workers safely off the UI thread
+            Task.Run(async () =>
+            {
+                var hostedServices = app.Services.GetServices<IHostedService>();
+
+                var actressWorker = hostedServices.OfType<ActressScraperWorker>().FirstOrDefault();
+                if (actressWorker != null)
+                    await actressWorker.StartAsync(CancellationToken.None);
+
+                var movieWorker = hostedServices.OfType<MovieScraperWorker>().FirstOrDefault();
+                if (movieWorker != null)
+                    await movieWorker.StartAsync(CancellationToken.None);
+            });
+
+            #endregion
 
             return app;
         }

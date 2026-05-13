@@ -28,8 +28,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
         private readonly IImageService _imageService;
         private readonly ILocalMediaScanner _localMediaScanner;
         private readonly INfoParserService _nfoParserService;
-        private readonly IScrapeService _scrapeService;
+        private readonly IScrapeActressService _scrapeService;
         private readonly IActressScrapeQueue _actressQueue;
+        private readonly IMovieScrapeQueue _movieScrapeQueue;
         private readonly ConcurrentDictionary<string, bool> _queuedImages = new();
 
         public ImportService(
@@ -39,8 +40,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
             IImageService imageService,
             ILocalMediaScanner localMediaScanner,
             INfoParserService nfoParserService,
-            IScrapeService scrapeService,
-            IActressScrapeQueue actressQueue)
+            IScrapeActressService scrapeService,
+            IActressScrapeQueue actressQueue,
+            IMovieScrapeQueue movieScrapeQueue)
         {
             _dbFactory = dbFactory;
             _logger = logger;
@@ -50,6 +52,8 @@ namespace EchidnaJav.Core.Infrastructure.Services
             _nfoParserService = nfoParserService;
             _localMediaScanner = localMediaScanner;
             _imageService = imageService;
+            _movieDbMapper = movieDbMapper;
+            _movieScrapeQueue = movieScrapeQueue;
         }
 
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
@@ -170,7 +174,6 @@ namespace EchidnaJav.Core.Infrastructure.Services
                                 await imageWriter.WriteAsync(bestImage, ct);
                             }
 
-                            // 🔥 Thread-safe increment
                             Report("Imported", dbMovie.Id);
 
                             //_logger.LogInformation("✅ Imported: {MovieId}", dbMovie.Id);
@@ -234,8 +237,23 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         }
                         else
                         {
-                            // TODO : scrape metadata from online sources using movieId as query (if enabled in settings)
-                            Report("Skipped (No NFO)", movieId);
+                            Report("Queued for Scrape", movieId);
+
+                            var validatedFiles = files
+                                .Where(f => !string.IsNullOrWhiteSpace(f))
+                                .ToList();
+
+                            string? targetDir = validatedFiles.Any() ? Path.GetDirectoryName(validatedFiles.First()) : null;
+
+                            if (!string.IsNullOrEmpty(targetDir))
+                            {
+                                await _movieScrapeQueue.QueueMovieAsync(new MovieScrapeRequest
+                                {
+                                    MovieId = movieId,
+                                    TargetDirectory = targetDir,
+                                    Files = validatedFiles
+                                });
+                            }
                         }
                     }
                     catch (OperationCanceledException)

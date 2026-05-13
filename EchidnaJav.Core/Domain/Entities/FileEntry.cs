@@ -15,7 +15,7 @@ namespace EchidnaJav.Core.Domain.Entities
         public string FileName { get; set; }
         public long SizeBytes { get; set; }
         public DateTime LastModified { get; set; }
-        public string Hash { get; set; } // SHA256 or MD5
-        public bool IsScanned { get; set; } // flag
+        public string Hash { get; set; } 
+        public bool IsScanned { get; set; } 
     }
 }

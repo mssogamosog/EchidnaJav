@@ -1,6 +1,7 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 
 namespace EchidnaJav.Scraper.Helpers
@@ -100,6 +101,64 @@ namespace EchidnaJav.Scraper.Helpers
             }
             return errVal;
         }
+        public static void FilterActorName(ActorData actor)
+        {
+            // Some actors are listed as "First Last (AltFirst AltLast).
+            // This function will split these out into main and alt names
+
+            if (actor == null || String.IsNullOrEmpty(actor.Name))
+                return;
+
+            // Try cplitting name on parens
+            string[] actorNames = actor.Name.Split("()".ToCharArray());
+            if (actorNames.Length == 1)
+            {
+                // If those don't exist, just trim and return the first string
+                actor.Name = actorNames[0].Trim();
+            }
+            else
+            {
+                // Assign the trimmed first part
+                actor.Name = actorNames[0].Trim();
+
+                // If we have one or more names in parens, next try splitting on commas
+                string[] moreActorNames = actorNames[1].Split(',');
+                foreach (string name in moreActorNames)
+                {
+                    // Add each name to the alias list if it doesn't exist
+                    string trimmedName = name.Trim();
+                    bool foundAlias = false;
+                    foreach (string alias in actor.Aliases)
+                    {
+                        if (alias == trimmedName)
+                        {
+                            foundAlias = true;
+                            break;
+                        }
+                    }
+                    if (foundAlias == false)
+                        actor.Aliases.Add(trimmedName);
+                }
+            }
+
+            // Make all title case
+            TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
+            actor.Name = textInfo.ToTitleCase(actor.Name);
+            for (int i = 0; i < actor.Aliases.Count; ++i)
+                actor.Aliases[i] = textInfo.ToTitleCase(actor.Aliases[i]);
+
+            // Remove duplicates
+            var nameSet = new HashSet<string>();
+            foreach (var alias in actor.Aliases)
+            {
+                if (alias != actor.Name)
+                    nameSet.Add(alias.Trim());
+            }
+            actor.Aliases.Clear();
+            foreach (var alias in nameSet)
+                actor.Aliases.Add(alias);
+        }
     }
+
 
 }

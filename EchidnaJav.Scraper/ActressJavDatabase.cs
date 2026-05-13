@@ -2,6 +2,7 @@
 using AngleSharp.Html.Dom;
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Scraper.Helpers;
+using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
 using System;
 using System;
@@ -14,7 +15,7 @@ namespace EchidnaJav.Scraper
 {
     public class ActressJavDatabase : ActressScraperBase
     {
-        public ActressJavDatabase(ILogger<ActressScraperBase> logger) : base(logger)
+        public ActressJavDatabase(ILogger<ActressScraperBase> logger, ISilentWebViewSandbox sandbox) : base(logger, sandbox)
         {
         }
 

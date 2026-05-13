@@ -15,10 +15,10 @@ namespace EchidnaJav.Scraper
 {
    
 
-    public class ScrapeService : IScrapeService
+    public class ActressScrapeService : IScrapeActressService
     {
         private readonly IEnumerable<IActressScraper> _scrapers;
-        private readonly ILogger<ScrapeService> _logger;
+        private readonly ILogger<ActressScrapeService> _logger;
         private readonly IActressRepositoryService _actressRepoService;
         private readonly IFileUtilityService _fileService;
         private readonly IAppPaths _appPaths;
@@ -26,9 +26,9 @@ namespace EchidnaJav.Scraper
         private readonly string _cacheFolder;
 
         // DI automatically hands you everything you need
-        public ScrapeService(
+        public ActressScrapeService(
             IEnumerable<IActressScraper> scrapers,
-            ILogger<ScrapeService> logger,
+            ILogger<ActressScrapeService> logger,
             IActressRepositoryService actressRepoService,
             IFileUtilityService fileService,
             IAppPaths appPaths,

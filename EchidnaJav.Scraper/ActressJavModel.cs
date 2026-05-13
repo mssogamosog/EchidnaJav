@@ -2,6 +2,7 @@
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Interfaces;
+using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -10,8 +11,8 @@ namespace EchidnaJav.Scraper;
 
 public class ActressJavModel : ActressScraperBase
 {
-    public ActressJavModel( ILogger<ActressScraperBase> logger)
-        : base(logger)
+    public ActressJavModel( ILogger<ActressScraperBase> logger, ISilentWebViewSandbox sandbox)
+        : base(logger, sandbox)
     {
     }
 

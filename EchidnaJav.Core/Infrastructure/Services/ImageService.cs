@@ -142,9 +142,18 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         private async Task<string?> GetImageBytes(string path)
         {
-            var bytes = await File.ReadAllBytesAsync(path);
-            var base64 = Convert.ToBase64String(bytes);
-            return $"data:image/jpeg;base64,{base64}";
+            try
+            {
+                var bytes = await File.ReadAllBytesAsync(path);
+                var base64 = Convert.ToBase64String(bytes);
+                return $"data:image/jpeg;base64,{base64}";
+            }
+            catch (Exception)
+            {
+
+                return $"data:image/jpeg;base64,";
+            }
+            
         }
 
         public string GetCachePath(string originalPath, ImageType type)

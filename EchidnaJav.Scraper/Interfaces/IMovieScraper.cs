@@ -5,9 +5,9 @@ using System.Text;
 
 namespace EchidnaJav.Scraper.Interfaces
 {
-    public interface IActressScraper : IScraper
+    public interface IMovieScraper : IScraper
     {
-        ActressData Actress { get; }
-        Task ScrapeAsync(string actressName, LanguageType language);
+        MovieMetadata Metadata { get; }
+        Task ScrapeAsync(string movieID, LanguageType language);
     }
 }
