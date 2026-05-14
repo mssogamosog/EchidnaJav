@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace EchidnaJav.Scraper
@@ -69,66 +70,90 @@ namespace EchidnaJav.Scraper
 
         private async Task<MovieMetadata> ScrapeStandardPipelineAsync(string movieID, string coverPath, LanguageType language, bool downloadCover)
         {
-            // Resolve modules via DI
-            //  var r18 = GetScraper<MovieR18Dev>();
+            MovieMetadata mergedMetadata = new MovieMetadata(movieID);
+
+            // =========================================================================
+            // Tier 1: Core Priority Group (JavLibrary & JavDatabase Concurrently)
+            // =========================================================================
+            _logger.LogInformation($"Launching primary concurrent execution for core targets: {movieID}");
+
+            var javLib = GetScraper<MovieJavLibrary>();
             var javDb = GetScraper<MovieJavDatabase>();
 
-            // 1. Concurrently fetch top priority scrapers to save time
+            // Execute both core engines in parallel to maximize IO thread efficiency
             await Task.WhenAll(
-                //r18.ScrapeAsync(movieID, language),
+                javLib.ScrapeAsync(movieID, language),
                 javDb.ScrapeAsync(movieID, language)
             );
 
-            //bool r18Success = r18.Metadata != null && !r18.SearchNotFound;
+            bool javLibSuccess = javLib.Metadata != null && !javLib.SearchNotFound;
             bool javDbSuccess = javDb.Metadata != null && !javDb.SearchNotFound;
 
-            // 2. Download Covers based on priority
+            // --- Priority Data Merging (JavLibrary > JavDatabase) ---
+            if (javLibSuccess)
+            {
+                mergedMetadata = javLib.Metadata;
+
+                // If JavDatabase also found data, cleanly backfill any empty attributes left by JavLibrary
+                if (javDbSuccess)
+                {
+                    mergedMetadata = MetadataMerger.MergePrimary(mergedMetadata, javDb.Metadata);
+                }
+            }
+            else if (javDbSuccess)
+            {
+                // Fallback entirely to JavDatabase base graph if JavLibrary failed to resolve
+                mergedMetadata = javDb.Metadata;
+            }
+
+            // --- Priority Cover Resolution ---
             if (downloadCover)
             {
-                //if (r18Success && !string.IsNullOrEmpty(r18.ImageSource))
-                //    await DownloadCoverAsync(coverPath, r18.ImageSource);
-                if (javDbSuccess && !string.IsNullOrEmpty(javDb.ImageSource))
+                // Give direct preference to the JavLibrary jacket source, pivoting to JavDatabase if absent
+                if (javLibSuccess && !string.IsNullOrEmpty(javLib.ImageSource))
+                {
+                    await DownloadCoverAsync(coverPath, javLib.ImageSource);
+                }
+                else if (javDbSuccess && !string.IsNullOrEmpty(javDb.ImageSource))
+                {
                     await DownloadCoverAsync(coverPath, javDb.ImageSource);
+                }
             }
 
-            MovieMetadata mergedMetadata;
-
-            // 3. Merge Logic
-            //if (r18Success && javDbSuccess)
-            //    mergedMetadata = MetadataMerger.MergeSecondary(javDb.Metadata, r18.Metadata);
-            //else if (r18Success)
-            //    mergedMetadata = r18.Metadata;
-            //else if (javDbSuccess)
-            mergedMetadata = javDb.Metadata;
-            //else
-            //{
-            // 4. FALLBACK: JavLibrary only if both failed
-            //  var javLib = GetScraper<MovieJavLibrary>();
-            //await javLib.ScrapeAsync(movieID, language);
-
-            //if (downloadCover && !string.IsNullOrEmpty(javLib.ImageSource))
-            //    await DownloadCoverAsync(coverPath, javLib.ImageSource);
-
-            //mergedMetadata = MetadataMerger.MergePrimary(javLib.Metadata, mergedMetadata);
-            // }
-
-            // 5. Secondary Scrapers (Enrichment)
-            if (mergedMetadata != null)
+            // =========================================================================
+            // Tier 2: R18.dev API (Executes ONLY if Tier 1 left structural gaps)
+            // =========================================================================
+            if (!IsMetadataFullyPopulated(mergedMetadata, coverPath, downloadCover))
             {
-                //await RunSecondaryEnrichmentAsync<MovieSupJav>(movieID, mergedMetadata, coverPath, language);
-                //await RunSecondaryEnrichmentAsync<MovieJavSeenTv>(movieID, mergedMetadata, coverPath, language);
+                _logger.LogInformation($"Gaps remain for {movieID}. Invoking secondary priority: R18.dev API...");
+                var r18 = GetScraper<MovieR18Dev>();
+                await r18.ScrapeAsync(movieID, language);
+
+                if (r18.Metadata != null && !r18.SearchNotFound)
+                {
+                    mergedMetadata = MetadataMerger.MergePrimary(mergedMetadata, r18.Metadata);
+
+                    if (downloadCover && !File.Exists(coverPath) && !string.IsNullOrEmpty(r18.ImageSource))
+                    {
+                        await DownloadCoverAsync(coverPath, r18.ImageSource);
+                    }
+                }
             }
 
-            // 6. Emergency Cover Fallback
-            //if (downloadCover && !File.Exists(coverPath) && mergedMetadata != null)
-            //{
-            //    _logger.LogInformation("Cover missing. Attempting MissAV emergency fallback...");
-            //    var missAv = GetScraper<MovieMissAv>();
-            //    await missAv.ScrapeAsync(mergedMetadata.UniqueID.Value, language);
+            // =========================================================================
+            // Tier 3: Secondary Fallback Modules (Executes if data is still incomplete)
+            // =========================================================================
+            if (!IsMetadataFullyPopulated(mergedMetadata, coverPath, downloadCover))
+            {
+                _logger.LogInformation($"Core pipeline incomplete for {movieID}. Running secondary fallback enrichment engines...");
 
-            //    if (!string.IsNullOrEmpty(missAv.ImageSource))
-            //        await DownloadCoverAsync(coverPath, missAv.ImageSource);
-            //}
+                await RunSecondaryEnrichmentAsync<MovieSupJav>(movieID, mergedMetadata, coverPath, language);
+
+                if (!IsMetadataFullyPopulated(mergedMetadata, coverPath, downloadCover))
+                {
+                    await RunSecondaryEnrichmentAsync<MovieMissAv>(movieID, mergedMetadata, coverPath, language);
+                }
+            }
 
             return mergedMetadata;
         }
@@ -137,7 +162,6 @@ namespace EchidnaJav.Scraper
         {
             var metadata = new MovieMetadata(id);
 
-            //Execute Sequentially: SupJav->JavTiful->MissAv until cover/ data filled
             var supJav = GetScraper<MovieSupJav>();
             await supJav.ScrapeAsync(id, language);
             metadata = supJav.Metadata;
@@ -169,11 +193,16 @@ namespace EchidnaJav.Scraper
         {
             var scraper = GetScraper<T>();
             await scraper.ScrapeAsync(id, lang);
-            MetadataMerger.MergeSecondary(target, scraper.Metadata);
 
-            // Fill cover if still missing
-            if (!File.Exists(coverPath) && !string.IsNullOrEmpty(scraper.ImageSource))
-                await DownloadCoverAsync(coverPath, scraper.ImageSource);
+            if (scraper.Metadata != null && !scraper.SearchNotFound)
+            {
+                target = MetadataMerger.MergePrimary(target, scraper.Metadata);
+
+                if (!File.Exists(coverPath) && !string.IsNullOrEmpty(scraper.ImageSource))
+                {
+                    await DownloadCoverAsync(coverPath, scraper.ImageSource);
+                }
+            }
         }
 
         private async Task DownloadCoverAsync(string targetPath, string url)
@@ -181,17 +210,28 @@ namespace EchidnaJav.Scraper
             string downloadedPath = await _imageService.DownloadImageAsync(_cacheFolder, url);
             if (!string.IsNullOrEmpty(downloadedPath) && File.Exists(downloadedPath))
             {
-                // Move from cache to final destination requested by the pipeline
                 File.Copy(downloadedPath, targetPath, overwrite: true);
             }
         }
 
-        // Helper to grab transient scraper instances via DI
         private T GetScraper<T>() where T : IMovieScraper
         {
             return ServiceProviderServiceExtensions.GetRequiredService<T>(_serviceProvider);
         }
 
         private bool IsMovieMetadataAcceptable(MovieMetadata meta) => meta != null && !string.IsNullOrEmpty(meta.Title);
+
+        private bool IsMetadataFullyPopulated(MovieMetadata? meta, string coverPath, bool requiresCover)
+        {
+            if (meta == null) return false;
+
+            if (requiresCover && !File.Exists(coverPath)) return false;
+
+            return !string.IsNullOrEmpty(meta.Title) &&
+                   !string.IsNullOrEmpty(meta.Studio) &&
+                   !string.IsNullOrEmpty(meta.Premiered) &&
+                   meta.Actors.Any() &&
+                   meta.Genres.Any();
+        }
     }
 }
