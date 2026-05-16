@@ -1,0 +1,176 @@
+﻿@using EchidnaJav.Core.Domain.States
+@inject ScraperActressState ActressState
+@inject ScraperMovieState MovieState
+@inject ImportState ImportState
+@implements IDisposable
+
+@if (ActressState.IsProcessing || MovieState.IsProcessing || ImportState.IsRunning)
+{
+    <div class="compact-widget-container @(isMinimized ? "minimized" : "")">
+        
+        @* ========================================================================= *@
+        @* LOCAL DIRECTORY IMPORT PIPELINE *@
+        @* ========================================================================= *@
+        @if (ImportState.IsRunning)
+        {
+            <div class="compact-widget pipeline-import">
+                <div class="cw-header">
+                    <span class="cw-title">@(string.IsNullOrEmpty(ImportState.Progress.Status) ? "Importing" : ImportState.Progress.Status)</span>
+                    <span class="cw-count">@($"{ImportState.Progress.Processed} / {ImportState.Progress.Total}")</span>
+                    
+                    <button class="cw-toggle-btn" @onclick="ToggleMinimize" title="Toggle Layout">
+                        @(isMinimized ? "+" : "−")
+                    </button>
+                </div>
+
+                @if (!isMinimized)
+                {
+                    <div class="cw-body">
+                        <div class="cw-filename" title="@ImportState.Progress.CurrentMovieId">
+                            @(string.IsNullOrEmpty(ImportState.Progress.CurrentMovieId) ? "Scanning..." : ImportState.Progress.CurrentMovieId)
+                        </div>
+                        <div class="cw-bottom-row">
+                            <div class="cw-track">
+                                <div class="cw-fill" style="width: @($"{ImportPercentage}%")"></div>
+                            </div>
+                            <button class="cw-cancel-btn" @onclick="CancelImport" title="Halt Import Operations">✖</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* ========================================================================= *@
+        @* ONLINE MOVIE SCRAPING PIPELINE *@
+        @* ========================================================================= *@
+        @if (MovieState.IsProcessing)
+        {
+            <div class="compact-widget pipeline-movie">
+                <div class="cw-header">
+                    <span class="cw-title">Movies</span>
+                    <span class="cw-count">@($"{MovieState.ProcessedCount} / {MovieState.TotalQueued}")</span>
+                    
+                    @if (!ImportState.IsRunning)
+                    {
+                        <button class="cw-toggle-btn" @onclick="ToggleMinimize" title="Toggle Layout">
+                            @(isMinimized ? "+" : "−")
+                        </button>
+                    }
+                </div>
+                @if (!isMinimized)
+                {
+                    <div class="cw-body">
+                        <div class="cw-track">
+                            <div class="cw-fill" style="width: @($"{GetPercentage(MovieState)}%")"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* ========================================================================= *@
+        @* BACKGROUND ACTRESS DISCOVERY PIPELINE *@
+        @* ========================================================================= *@
+        @if (ActressState.IsProcessing)
+        {
+            <div class="compact-widget pipeline-actress">
+                <div class="cw-header">
+                    <span class="cw-title">Actresses</span>
+                    <span class="cw-count">@($"{ActressState.ProcessedCount} / {ActressState.TotalQueued}")</span>
+                    
+                    @if (!ImportState.IsRunning && !MovieState.IsProcessing)
+                    {
+                        <button class="cw-toggle-btn" @onclick="ToggleMinimize" title="Toggle Layout">
+                            @(isMinimized ? "+" : "−")
+                        </button>
+                    }
+                </div>
+                @if (!isMinimized)
+                {
+                    <div class="cw-body">
+                        <div class="cw-track">
+                            <div class="cw-fill" style="width: @($"{GetPercentage(ActressState)}%")"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+    </div>
+}
+
+@code {
+    private bool isMinimized = false;
+    private PeriodicTimer? _timer;
+    private readonly CancellationTokenSource _cts = new();
+    
+    // 🔥 CRITICAL PROTECTION: Guarantees dead components drop IPC broadcasts natively
+    private bool _isDisposed = false;
+
+    private double ImportPercentage => ImportState.Progress.Total == 0
+        ? 0
+        : ((double)ImportState.Progress.Processed / ImportState.Progress.Total) * 100;
+
+    private double GetPercentage(ScraperStateBase state) => state.TotalQueued == 0
+        ? 0
+        : ((double)state.ProcessedCount / state.TotalQueued) * 100;
+
+    protected override void OnInitialized()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
+        _ = StartPolling();
+    }
+
+    private async Task StartPolling()
+    {
+        try
+        {
+            bool wasProcessing = false;
+            
+            while (await _timer!.WaitForNextTickAsync(_cts.Token))
+            {
+                // Absolute breakout verification locks memory releases instantly
+                if (_isDisposed) break;
+
+                bool isProcessing = ActressState.IsProcessing ||
+                                   MovieState.IsProcessing ||
+                                   ImportState.IsRunning;
+                
+                if (isProcessing || wasProcessing)
+                {
+                    await InvokeAsync(() =>
+                    {
+                        // Secondary validation directly inside the UI rendering context thread
+                        if (!_isDisposed)
+                        {
+                            StateHasChanged();
+                        }
+                    });
+                }
+                wasProcessing = isProcessing;
+            }
+        }
+        catch (OperationCanceledException) { /* Loop cleanly halts during token disposal */ }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Dashboard renderer loop terminated cleanly: {ex.Message}");
+        }
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true; // Lock thread contexts instantly
+        
+        try
+        {
+            _cts.Cancel();
+            _cts.Dispose();
+            _timer?.Dispose();
+        }
+        catch { /* Bypass runtime disposal race conditions */ }
+    }
+
+    private void ToggleMinimize() => isMinimized = !isMinimized;
+    
+    private void CancelImport() => ImportState.Cts?.Cancel();
+}

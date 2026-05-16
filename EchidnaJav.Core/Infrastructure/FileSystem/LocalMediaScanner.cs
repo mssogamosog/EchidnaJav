@@ -24,45 +24,59 @@ namespace EchidnaJav.Core.Infrastructure.FileSystem
 
         public async Task<Dictionary<string, List<string>>> GroupFilesByMovieAsync(string rootPath)
         {
-            var allFiles = Directory.GetFiles(rootPath, "*.*", SearchOption.AllDirectories);
-            var groups = new ConcurrentDictionary<string, ConcurrentBag<string>>();
-            var dirIdCache = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            await Parallel.ForEachAsync(allFiles, (file, _) =>
+            
+            return await Task.Run(async () =>
             {
-                // 1. Check the FILE itself first (The most specific identifier)
-                string id = _movieIdService.ParseMovieID(file);
+               
+                var allFiles = Directory.EnumerateFiles(rootPath, "*.*", SearchOption.AllDirectories);
 
-                // 2. Fallback: If the file name is generic, check the parent directory
-                if (string.IsNullOrEmpty(id))
+                var groups = new ConcurrentDictionary<string, ConcurrentBag<string>>();
+                var dirIdCache = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                // 🔥 3. CLAMP THE CPU
+                // Limit regex string parsing to 3 concurrent threads. 
+                // This leaves the rest of your CPU cores entirely free to render the Blazor UI smoothly.
+                var parallelOptions = new ParallelOptions
                 {
-                    string directory = Path.GetDirectoryName(file);
-                    if (!string.IsNullOrEmpty(directory))
+                    MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 2)
+                };
+
+                await Parallel.ForEachAsync(allFiles, parallelOptions, (file, _) =>
+                {
+                    // 1. Check the FILE itself first (The most specific identifier)
+                    string id = _movieIdService.ParseMovieID(file);
+
+                    // 2. Fallback: If the file name is generic, check the parent directory
+                    if (string.IsNullOrEmpty(id))
                     {
-                        id = dirIdCache.GetOrAdd(directory, dir =>
+                        string directory = Path.GetDirectoryName(file);
+                        if (!string.IsNullOrEmpty(directory))
                         {
-                            // Check exactly ONE level up
-                            var parsedId = _movieIdService.ParseMovieID(dir);
-                            return parsedId ?? string.Empty;
-                        });
+                            id = dirIdCache.GetOrAdd(directory, dir =>
+                            {
+                                // Check exactly ONE level up
+                                var parsedId = _movieIdService.ParseMovieID(dir);
+                                return parsedId ?? string.Empty;
+                            });
+                        }
                     }
-                }
 
-                // 3. Group the file if we found a valid ID
-                if (string.IsNullOrWhiteSpace(id))
+                    // 3. Group the file if we found a valid ID
+                    if (string.IsNullOrWhiteSpace(id))
+                        return ValueTask.CompletedTask;
+
+                    var bag = groups.GetOrAdd(id, _ => new ConcurrentBag<string>());
+                    bag.Add(file);
+
                     return ValueTask.CompletedTask;
+                });
 
-                var bag = groups.GetOrAdd(id, _ => new ConcurrentBag<string>());
-                bag.Add(file);
-
-                return ValueTask.CompletedTask;
+                // 4. Final aggregation
+                return groups
+                    .Where(g => g.Value.Any(f => MediaConstants.VideoExtensions.Contains(Path.GetExtension(f))))
+                    .ToDictionary(k => k.Key, v => v.Value.ToList());
             });
-
-            return groups
-                .Where(g => g.Value.Any(f => MediaConstants.VideoExtensions.Contains(Path.GetExtension(f))))
-                .ToDictionary(k => k.Key, v => v.Value.ToList());
         }
-
         public string ComputeMetadataHash(string path)
         {
             var fi = new FileInfo(path);

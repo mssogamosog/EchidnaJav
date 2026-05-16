@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -27,7 +28,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
             }
         }
 
-        //  Compile Regexes ONCE (Static Readonly) for high performance.
+        // Compile Regexes ONCE (Static Readonly) for high performance.
         private static readonly List<IdRule> HighPriorityRules = new List<IdRule>
         {
             // FC2-PPV
@@ -40,6 +41,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 m => $"T{m.Groups[1].Value}8-{m.Groups[2].Value}"
             )
         };
+
         private static readonly List<IdRule> StandardRules = new List<IdRule>
         {
             // 13dsvr01744pl → DSVR-1744
@@ -58,28 +60,21 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Mixed Alphanumeric (ABC12-123A -> ABC12-123)
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7}[0-9]{0,2})[-_ ]([0-9]{2,5})([A-Za-z]?)(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-                m => string.Format("{0}-{1}{2}",
-                    m.Groups[1].Value.ToUpper(),
-                    m.Groups[2].Value,
-                    (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
+            // Removed Group 3 capture logic to uniformly strip trailing disc letters
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7}[0-9]{0,2})[-_ ]([0-9]{2,5})[A-Za-z]?(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Basic / Compact (MDVR-129A -> MDVR-129)
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,8})([A-Za-z]?)(?=[^0-9A-Za-z]|$)",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
-                m => string.Format("{0}-{1}{2}",
-                m.Groups[1].Value.ToUpper(),
-                m.Groups[2].Value,
-                (m.Groups[3].Success && m.Groups[3].Value.ToUpper() == "D") ? "D" : "")),
+            // Removed Group 3 capture logic to uniformly strip trailing disc letters
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,8})[A-Za-z]?(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Single Letter (A-123)
             new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z])(?:[-_ ]?)([0-9]{3,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value))
         };
 
-
-
-        // 3. Compile the bracket regex once as well
+        // Compile the bracket regex once as well
         private static readonly Regex BracketRegex = new Regex(@"\[(.*?)\]", RegexOptions.Compiled);
 
         public string ParseMovieID(string fileName)
@@ -112,28 +107,31 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
             return string.Empty;
         }
+
         public bool MovieIDEquals(string movieID1, string movieID2)
         {
             movieID2 = ParseMovieID(movieID2);
             if (movieID1 == movieID2)
                 return true;
+
             string[] parts1 = movieID1.Split('-');
             string[] parts2 = movieID2.Split('-');
-            if (parts1.Length != parts2.Length)
+
+            if (parts1.Length != parts2.Length || parts1.Length != 2)
                 return false;
-            if (parts1.Length != 2)
-                return false;
+
             if (parts1[0] != parts2[0])
                 return false;
+
             int num1 = ParseInitialDigits(parts1[1]);
             int num2 = ParseInitialDigits(parts2[1]);
-            if (num1 == num2 && num1 != -1)
-                return true;
-            return false;
+
+            return (num1 == num2 && num1 != -1);
         }
+
         public string GenerateNormalizedID(string originalId)
         {
-            if (string.IsNullOrWhiteSpace(originalId)) 
+            if (string.IsNullOrWhiteSpace(originalId))
                 return string.Empty;
 
             var parts = originalId.Split('-');
@@ -144,14 +142,15 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 return $"{prefix}-{numberPart.PadLeft(5, '0')}";
             }
 
-            return originalId; 
+            return originalId;
         }
+
         public int ParseInitialDigits(string s, int errVal = -1)
         {
             int digits = 0;
             foreach (char c in s)
             {
-                if (Char.IsDigit(c))
+                if (char.IsDigit(c))
                     ++digits;
                 else
                     break;
@@ -159,8 +158,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
             if (digits > 0)
             {
                 string numStr = s.Substring(0, digits);
-                int num = 0;
-                if (Int32.TryParse(numStr, out num))
+                if (int.TryParse(numStr, out int num))
                     return num;
             }
             return errVal;

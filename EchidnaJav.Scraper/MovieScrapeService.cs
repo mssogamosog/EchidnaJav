@@ -147,11 +147,11 @@ namespace EchidnaJav.Scraper
             {
                 _logger.LogInformation($"Core pipeline incomplete for {movieID}. Running secondary fallback enrichment engines...");
 
-                await RunSecondaryEnrichmentAsync<MovieSupJav>(movieID, mergedMetadata, coverPath, language);
+                mergedMetadata = await RunSecondaryEnrichmentAsync<MovieSupJav>(movieID, mergedMetadata, coverPath, language);
 
                 if (!IsMetadataFullyPopulated(mergedMetadata, coverPath, downloadCover))
                 {
-                    await RunSecondaryEnrichmentAsync<MovieMissAv>(movieID, mergedMetadata, coverPath, language);
+                    mergedMetadata = await RunSecondaryEnrichmentAsync<MovieMissAv>(movieID, mergedMetadata, coverPath, language);
                 }
             }
 
@@ -189,20 +189,21 @@ namespace EchidnaJav.Scraper
             return metadata;
         }
 
-        private async Task RunSecondaryEnrichmentAsync<T>(string id, MovieMetadata target, string coverPath, LanguageType lang) where T : IMovieScraper
+        private async Task<MovieMetadata> RunSecondaryEnrichmentAsync<T>(string id, MovieMetadata currentMetadata, string coverPath, LanguageType lang) where T : IMovieScraper
         {
             var scraper = GetScraper<T>();
             await scraper.ScrapeAsync(id, lang);
 
             if (scraper.Metadata != null && !scraper.SearchNotFound)
             {
-                target = MetadataMerger.MergePrimary(target, scraper.Metadata);
+                currentMetadata = MetadataMerger.MergePrimary(currentMetadata, scraper.Metadata);
 
                 if (!File.Exists(coverPath) && !string.IsNullOrEmpty(scraper.ImageSource))
                 {
                     await DownloadCoverAsync(coverPath, scraper.ImageSource);
                 }
             }
+            return currentMetadata;
         }
 
         private async Task DownloadCoverAsync(string targetPath, string url)

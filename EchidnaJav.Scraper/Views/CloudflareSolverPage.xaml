@@ -1,20 +1,54 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="EchidnaJav.Scraper.Views.CloudflareSolverPage" Title="Security Check">
+             x:Class="EchidnaJav.Scraper.Views.CloudflareSolverPage" 
+             Title="Security Check"
+             BackgroundColor="{AppThemeBinding Light={StaticResource LightPageBackground}, Dark={StaticResource DarkPageBackground}}">
 
-    <Grid>
-        <WebView x:Name="ChallengeWebView" Navigated="OnWebViewNavigated" />
+    <Grid RowDefinitions="Auto, *">
 
-        <Border BackgroundColor="{AppThemeBinding Light=#EEF2FF, Dark=#1E1E24}" 
-                StrokeThickness="0"
+        <Grid Grid.Row="0" 
+              ColumnDefinitions="*, Auto" 
+              Padding="14,10" 
+              BackgroundColor="{AppThemeBinding Light={StaticResource LightSurface}, Dark={StaticResource DarkSurface}}">
+
+            <Label Grid.Column="0" 
+                   Text="Verification Required" 
+                   TextColor="{AppThemeBinding Light={StaticResource LightText}, Dark={StaticResource DarkText}}"
+                   VerticalOptions="Center" 
+                   FontSize="16"
+                   FontAttributes="Bold" />
+
+            <Button Grid.Column="1" 
+                    Text="Cancel" 
+                    Clicked="OnCancelClicked" 
+                    Padding="14,6"
+                    CornerRadius="8"
+                    FontSize="13"
+                    BackgroundColor="{StaticResource DangerColor}"
+                    TextColor="#FFFFFF" />
+        </Grid>
+
+        <WebView Grid.Row="1" 
+                 x:Name="ChallengeWebView" 
+                 Navigated="OnWebViewNavigated" />
+
+        <Border Grid.Row="1"
+                BackgroundColor="{AppThemeBinding Light={StaticResource LightSurface}, Dark={StaticResource DarkSurface}}" 
+                Stroke="{AppThemeBinding Light={StaticResource LightBorder}, Dark={StaticResource DarkBorder}}"
+                StrokeThickness="1"
                 VerticalOptions="Start" 
-                Margin="10" Padding="15"
-                StrokeShape="RoundRectangle 8">
-            <Label Text="Please complete the security check to continue scraping."
-                   HorizontalOptions="Center" 
-                   FontAttributes="Bold"/>
-        </Border>
-    </Grid>
+                Margin="16" 
+                Padding="16,12"
+                StrokeShape="RoundRectangle 12"
+                Shadow="{Shadow Brush={AppThemeBinding Light={StaticResource LightText}, Dark=#000000}, Offset='0,4', Radius=12, Opacity=0.08}">
 
+            <Label Text="Please complete the security check below to unblock the session pipeline."
+                   TextColor="{AppThemeBinding Light={StaticResource LightTextMuted}, Dark={StaticResource DarkTextMuted}}"
+                   HorizontalOptions="Center" 
+                   HorizontalTextAlignment="Center"
+                   FontSize="13" />
+        </Border>
+
+    </Grid>
 </ContentPage>

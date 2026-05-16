@@ -1,4 +1,5 @@
 ﻿
+using EchidnaJav.Core.Domain.States;
 using System.Threading.Channels;
 
 namespace EchidnaJav.Core.Infrastructure.Services
@@ -18,10 +19,16 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
     public class MovieScrapeQueue : IMovieScrapeQueue
     {
-        private readonly Channel<MovieScrapeRequest> _queue = Channel.CreateUnbounded<MovieScrapeRequest>();
-
+        private readonly Channel<MovieScrapeRequest> _queue;
+        private readonly ScraperMovieState _state;
+        public MovieScrapeQueue(ScraperMovieState state)
+        {
+            _state = state;
+            _queue = Channel.CreateUnbounded<MovieScrapeRequest>();
+        }
         public async ValueTask QueueMovieAsync(MovieScrapeRequest request)
         {
+            _state.AddToQueue();
             await _queue.Writer.WriteAsync(request);
         }
 

@@ -49,6 +49,7 @@ namespace EchidnaJav
             builder.Services.AddSingleton<UIState>();
             builder.Services.AddScoped<SearchState>();
             builder.Services.AddSingleton<ScraperActressState>();
+            builder.Services.AddSingleton<ScraperMovieState>();
 
             #endregion
 

@@ -22,7 +22,7 @@ namespace EchidnaJav.Scraper
         protected static HttpClient? _httpClient;
         protected static string _webViewUserAgent = string.Empty;
         private readonly ISilentWebViewSandbox _sandbox;
-
+        private static readonly SemaphoreSlim _cloudflareLock = new(1, 1);
         protected LanguageType m_language;
         protected bool m_parsingSuccessful = false;
         protected virtual bool EnableCloudflareHandling => true;
@@ -167,76 +167,110 @@ namespace EchidnaJav.Scraper
         /// </summary>
         private async Task ResolveCloudflareViaUIAsync(string url)
         {
-            CloudflareSolverPage? solverPage = null;
+            _logger.LogInformation($"Awaiting global UI clearance lock for target: {url}");
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
+            // 1. Serialize access globally so multiple concurrent scrapers never collide on the UI stack
+            await _cloudflareLock.WaitAsync();
+            try
             {
-                solverPage = new CloudflareSolverPage(url);
+                // 2. SILENT GRACE PERIOD: Allow background network adapters to process standard Turnstile passes
+                _logger.LogInformation($"Acquired lock. Evaluating Cloudflare state silently for: {url}");
+                await Task.Delay(1500);
 
-                var rootPage = Application.Current?.MainPage;
-                if (rootPage is NavigationPage navPage)
-                    rootPage = navPage.CurrentPage;
-
-                if (rootPage != null)
+                // Quick evaluation check: If a previous task just solved the challenge while we were waiting inline,
+                // our shared HttpClients/Cookies may already be cleared. Short-circuit immediately if unblocked.
+                if (m_parsingSuccessful || SearchNotFound)
                 {
-                    // Explicitly push modally to guarantee overlay execution
-                    await rootPage.Navigation.PushModalAsync(solverPage);
+                    _logger.LogInformation("Session natively unblocked by concurrent session traversal. Bypassing visual mount.");
+                    return;
                 }
-            });
 
-            if (solverPage == null) return;
+                CloudflareSolverPage? solverPage = null;
 
-            // Pause background execution thread until visual resolution completes
-            bool wasSolved = await solverPage.SolutionTask;
-
-            if (wasSolved)
-            {
+                // 3. MOUNT MODAL: Exclusively present the visual challenge
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
-                    var data = await solverPage.ExtractBrowserDataAsync();
+                    solverPage = new CloudflareSolverPage(url);
+                    var rootNav = Application.Current?.MainPage?.Navigation;
 
-                    if (!string.IsNullOrEmpty(data.UserAgent))
-                        _webViewUserAgent = data.UserAgent;
-
-                    if (!string.IsNullOrEmpty(data.Cookies))
+                    if (rootNav != null)
                     {
-                        var baseUri = new Uri(url);
-                        string rootDomain = baseUri.Host;
+                        _logger.LogInformation("Mounting Cloudflare solver overlay cleanly to the active root stack.");
+                        await rootNav.PushModalAsync(solverPage);
+                    }
+                });
 
-                        var cookiePairs = data.Cookies.Split(';');
-                        foreach (var pair in cookiePairs)
+                if (solverPage == null) return;
+
+                // 4. AWAIT RESOLUTION: Suspend current pipeline execution safely off the UI thread
+                bool wasSolved = await solverPage.SolutionTask;
+
+                if (wasSolved)
+                {
+                    // Allow local Webview scripts to settle native storage flushes
+                    await Task.Delay(300);
+
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        var data = await solverPage.ExtractBrowserDataAsync();
+
+                        if (!string.IsNullOrEmpty(data.UserAgent))
+                            _webViewUserAgent = data.UserAgent;
+
+                        if (!string.IsNullOrEmpty(data.Cookies))
                         {
-                            var split = pair.Split(new[] { '=' }, 2);
-                            if (split.Length == 2)
+                            var baseUri = new Uri(url);
+                            string rootDomain = baseUri.Host;
+
+                            var cookiePairs = data.Cookies.Split(';');
+                            foreach (var pair in cookiePairs)
                             {
-                                try
+                                var split = pair.Split(new[] { '=' }, 2);
+                                if (split.Length == 2)
                                 {
-                                    _sharedCookies.Add(new Cookie(split[0].Trim(), split[1].Trim())
+                                    try
                                     {
-                                        Domain = rootDomain,
-                                        Path = "/"
-                                    });
+                                        string cookieName = split[0].Trim();
+                                        string cookieVal = split[1].Trim();
+
+                                        if (!string.IsNullOrEmpty(cookieName))
+                                        {
+                                            _sharedCookies.Add(new Cookie(cookieName, cookieVal)
+                                            {
+                                                Domain = rootDomain,
+                                                Path = "/"
+                                            });
+                                        }
+                                    }
+                                    catch { }
                                 }
-                                catch { }
                             }
                         }
+                    });
+
+                    _logger.LogInformation("Cloudflare clearance parameters successfully synchronized downstream.");
+                }
+                else
+                {
+                    _logger.LogWarning("Cloudflare Captcha resolution explicitly canceled or dismissed by user.");
+                }
+
+                // 5. SAFE UNMOUNTING: Flush modal cleanly off the display hierarchy
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    var rootNav = Application.Current?.MainPage?.Navigation;
+
+                    if (rootNav != null && rootNav.ModalStack.Contains(solverPage))
+                    {
+                        await rootNav.PopModalAsync();
                     }
                 });
             }
-            else
+            finally
             {
-                _logger.LogWarning("Cloudflare Captcha resolution canceled by user.");
+                // CRITICAL: Guarantee the lock releases even if view controllers throw unhandled exceptions
+                _cloudflareLock.Release();
             }
-
-            // Guarantee unmounting from the visual hierarchy
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
-                var rootPage = Application.Current?.MainPage;
-                if (rootPage != null)
-                {
-                    await rootPage.Navigation.PopModalAsync();
-                }
-            });
         }
 
         protected bool IsCloudflarePage(IHtmlDocument? document)

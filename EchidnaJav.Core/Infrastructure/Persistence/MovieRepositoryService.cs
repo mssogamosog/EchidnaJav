@@ -184,10 +184,10 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             using var db = _dbFactory.CreateDbContext();
             string movieId = scrapedData.UniqueID.Value.ToUpper();
 
-            // 1. Fetch existing movie graph including links for synchronization
+            // 1. Fetch complete tracking graph including nested relationship targets
             var movie = await db.Movies
-                .Include(m => m.MovieGenres)
-                .Include(m => m.MovieActresses)
+                .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+                .Include(m => m.MovieActresses).ThenInclude(ma => ma.Actress)
                 .Include(m => m.Files)
                 .FirstOrDefaultAsync(m => m.Id == movieId);
 
@@ -197,7 +197,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 db.Movies.Add(movie);
             }
 
-            // 2. Map primitive fields safely
+            // --- Map Scalar Properties ---
             movie.NormalizedId = movieId.Replace("-", "").Replace(" ", "");
             movie.Title = scrapedData.Title;
             movie.OriginalTitle = scrapedData.OriginalTitle;
@@ -226,9 +226,11 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             {
                 movie.Rating = primaryRating.Value;
             }
+
+            // --- 2. Safely Synchronize Discovered Files ---
             foreach (string filePath in mediaFiles)
             {
-                if (!movie.Files.Any(f => f.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
+                if (!movie.Files.Any(f => f.FilePath != null && f.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
                 {
                     var fileInfo = new FileInfo(filePath);
                     if (fileInfo.Exists)
@@ -241,17 +243,18 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                             SizeBytes = fileInfo.Length,
                             LastModified = fileInfo.LastWriteTimeUtc,
                             IsScanned = true,
-                            Hash = string.Empty // Can be populated later by a background hashing queue
+                            Hash = string.Empty
                         });
                     }
                 }
             }
 
-            // 3. Synchronize Relationships
+            // --- 3. Differential Synchronization of Relationships ---
             await SyncGenresAsync(db, movie, scrapedData.Genres);
             await SyncActressesAsync(db, movie, scrapedData.Actors);
 
-            // 4. Commit transaction
+            // --- 4. Single Atomic Flush Commit ---
+            // Guarantees all primary keys and temporary mapping references resolve natively
             await db.SaveChangesAsync();
 
             return movie;
@@ -259,56 +262,110 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
         private async Task SyncGenresAsync(AppDbContext db, Movie movie, List<string> scrapedGenres)
         {
-            movie.MovieGenres.Clear();
+            // Sanitize target inputs cleanly
+            var targetGenres = scrapedGenres
+                .Where(g => !string.IsNullOrWhiteSpace(g))
+                .Select(g => g.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            foreach (string genreName in scrapedGenres.Distinct())
+            // 1. Remove existing join entities no longer represented in the scraped payload
+            var orphansToRemove = movie.MovieGenres
+                .Where(mg => mg.Genre != null && !targetGenres.Contains(mg.Genre.Name, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var orphan in orphansToRemove)
             {
-                string cleanName = genreName.Trim();
-                if (string.IsNullOrEmpty(cleanName)) continue;
+                movie.MovieGenres.Remove(orphan);
+                db.Remove(orphan); // Force explicit database join table deletion
+            }
 
-                var genre = await db.Genres
-                    .FirstOrDefaultAsync(g => g.Name.ToLower() == cleanName.ToLower());
+            // 2. Map new active incoming connections
+            foreach (string genreName in targetGenres)
+            {
+                // Skip execution if parent entity already holds an active bridge
+                if (movie.MovieGenres.Any(mg => mg.Genre != null && mg.Genre.Name.Equals(genreName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                // Intercept pending untracked runtime allocations stored directly inside memory buffers
+                var genre = db.Genres.Local.FirstOrDefault(g => g.Name.Equals(genreName, StringComparison.OrdinalIgnoreCase));
 
                 if (genre == null)
                 {
-                    genre = new Genre { Name = cleanName };
+                    genre = await db.Genres.FirstOrDefaultAsync(g => g.Name.ToLower() == genreName.ToLower());
+                }
+
+                if (genre == null)
+                {
+                    genre = new Genre { Name = genreName };
                     db.Genres.Add(genre);
-                    await db.SaveChangesAsync();
+                    // Notice: Mid-stream SaveChanges entirely stripped out
                 }
 
                 movie.MovieGenres.Add(new MovieGenre
                 {
                     MovieId = movie.Id,
-                    GenreId = genre.Id
+                    Movie = movie,
+                    Genre = genre
                 });
             }
         }
 
         private async Task SyncActressesAsync(AppDbContext db, Movie movie, List<ActorData> scrapedActors)
         {
-            movie.MovieActresses.Clear();
+            var targetActors = scrapedActors
+                .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                .DistinctBy(a => a.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            for (int i = 0; i < scrapedActors.Count; i++)
+            // 1. Flush outdated mapping relationships safely
+            var orphansToRemove = movie.MovieActresses
+                .Where(ma => ma.Actress != null && !targetActors.Any(ta => ta.Name.Trim().Equals(ma.Actress.Name, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            foreach (var orphan in orphansToRemove)
             {
-                var actorDto = scrapedActors[i];
-                string cleanName = actorDto.Name.Trim();
-                if (string.IsNullOrEmpty(cleanName)) continue;
+                movie.MovieActresses.Remove(orphan);
+                db.Remove(orphan);
+            }
 
-                var actress = await db.Actresses
-                    .FirstOrDefaultAsync(a => a.Name.ToLower() == cleanName.ToLower() ||
-                                              a.AltNames.Any(alt => alt.Name.ToLower() == cleanName.ToLower()));
+            // 2. Synchronize active state structures sequentially
+            for (int i = 0; i < targetActors.Count; i++)
+            {
+                var actorDto = targetActors[i];
+                string cleanName = actorDto.Name.Trim();
+
+                // If join assignment already resolves perfectly, simply refresh structural layout tracking index
+                var existingJoin = movie.MovieActresses.FirstOrDefault(ma => ma.Actress != null && ma.Actress.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+                if (existingJoin != null)
+                {
+                    existingJoin.Order = i;
+                    continue;
+                }
+
+                // Verify active local thread allocations
+                var actress = db.Actresses.Local.FirstOrDefault(a => a.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+
+                if (actress == null)
+                {
+                    actress = await db.Actresses.FirstOrDefaultAsync(a =>
+                        a.Name.ToLower() == cleanName.ToLower() ||
+                        a.AltNames.Any(alt => alt != null && alt.Name.ToLower() == cleanName.ToLower()));
+                }
 
                 if (actress == null)
                 {
                     actress = new Actress { Name = cleanName };
                     db.Actresses.Add(actress);
-                    await db.SaveChangesAsync();
                 }
 
                 movie.MovieActresses.Add(new MovieActress
                 {
                     MovieId = movie.Id,
-                    ActressId = actress.Id,
+                    Movie = movie,
+                    Actress = actress,
                     Order = i
                 });
             }

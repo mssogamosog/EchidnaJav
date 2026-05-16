@@ -58,17 +58,34 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
         {
+            await Task.Yield();
             var newlyScrapedActresses = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var groups = await _localMediaScanner.GroupFilesByMovieAsync(rootPath);
 
             int total = groups.Count;
             int processed = 0; // Shared counter
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            long lastReportTicks = Environment.TickCount64;
             void Report(string status, string? movieId)
             {
                 var current = Interlocked.Increment(ref processed);
+                long now = Environment.TickCount64;
+                long last = Interlocked.Read(ref lastReportTicks);
 
-                if (stopwatch.ElapsedMilliseconds > 250 || current == total || status == "Failed")
+                // Always report if it's the final item or a failure
+                bool shouldReport = current == total || status == "Failed";
+
+                // Otherwise, strictly enforce the 250ms window
+                if (!shouldReport && (now - last > 250))
+                {
+                    // CompareExchange guarantees that only ONE parallel thread wins the lock 
+                    // and pushes an update to the UI per 250ms cycle.
+                    if (Interlocked.CompareExchange(ref lastReportTicks, now, last) == last)
+                    {
+                        shouldReport = true;
+                    }
+                }
+
+                if (shouldReport)
                 {
                     progress?.Report(new ImportProgress
                     {
@@ -77,9 +94,6 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         CurrentMovieId = movieId,
                         Status = status
                     });
-
-                    // Reset the clock
-                    stopwatch.Restart();
                 }
             }
 
