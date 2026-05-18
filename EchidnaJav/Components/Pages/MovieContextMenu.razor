@@ -19,7 +19,7 @@
              @oncontextmenu:preventDefault="true"></div>
 
         <div class="custom-context-menu"
-             style="top: min(calc(100vh - 260px), @($"{Y}px")); left: min(calc(100vw - 220px), @($"{X}px"));">
+             style="top: min(calc(100vh - 360px), @($"{Y}px")); left: min(calc(100vw - 200px), @($"{X}px"));">
 
             <ul class="menu-list">
                 <li class="menu-item" @onclick="PlayMovieAsync">
@@ -81,20 +81,16 @@
         if (SelectedMovies.Count == 1)
         {
             _showUrlDialog = true;
-            // NOTE: We do NOT call Close() here, otherwise IsVisible becomes false 
-            // and our dialog gets destroyed before it even opens!
         }
     }
 
-    // 🔥 Updated to accept the dynamic list of requests
     private async Task HandleUrlScrape(List<ManualUrlScrapeRequest> requests)
     {
         _showUrlDialog = false;
         var movie = SelectedMovies.First();
 
-        await Close(); // Now we can safely close the whole context menu 
+        await Close();
 
-        // 🔥 Call the new multiple-URL method
         bool success = await Repo.RegenerateMetadataFromUrlsAsync(movie.Id, requests);
 
         if (success)
@@ -106,7 +102,7 @@
     private async Task CancelUrlScrape()
     {
         _showUrlDialog = false;
-        await Close(); // Close the menu entirely if they cancel
+        await Close(); 
     }
 
     private async Task Close()
@@ -195,9 +191,49 @@
         if (SelectedMovies.Count != 1) return;
 
         var movie = SelectedMovies.First();
+
         await Close();
 
-        await OnMoviesUpdated.InvokeAsync();
+        try
+        {
+            var customFileType = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.WinUI, new[] { ".jpg", ".jpeg", ".png", ".webp" } },
+                { DevicePlatform.MacCatalyst, new[] { "public.image" } }
+            });
+
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = $"Select new cover for {movie.Title}",
+                FileTypes = customFileType
+            });
+
+            if (result != null)
+            {
+                using var stream = await result.OpenReadAsync();
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                var fullDetails = await Repo.GetMovieDetailsAsync(movie.Id);
+
+                if (fullDetails != null)
+                {
+                    fullDetails.NewCoverImageBytes = ms.ToArray();
+                    fullDetails.NewCoverImageExtension = System.IO.Path.GetExtension(result.FileName);
+
+                    bool success = await Repo.UpdateMovieDetailsAsync(fullDetails);
+
+                    if (success)
+                    {
+                        await OnMoviesUpdated.InvokeAsync();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"File picker cancelled or failed: {ex.Message}");
+        }
     }
 
     private async Task RegenerateMetadataAsync()
@@ -224,7 +260,7 @@
 
         // 1. Create a safe warning prompt
         string prompt = SelectedMovies.Count == 1
-            ? $"Are you sure you want to remove '{SelectedMovies.First().Title}' from your database?\n\n(Physical video files will not be deleted)."
+            ? $"Are you sure you want to remove '{SelectedMovies.First().Id}' from your database?\n\n(Physical video files will not be deleted)."
             : $"Are you sure you want to remove {SelectedMovies.Count} movies from your database?";
 
         // 2. Ask for confirmation before doing anything destructive

@@ -11,7 +11,9 @@
 @inject IPlaybackService PlaybackService
 @inject UIState UI
 
-<div class="movie-page-container">
+<div class="movie-page-container" @oncontextmenu="ShowContextMenu"
+     @oncontextmenu:preventDefault="true">
+    
 
     <!-- TITLE -->
     <div class="title-area">
@@ -275,6 +277,15 @@
         </div>
     </div>
 </div>
+@if (movie != null)
+{
+    <MovieContextMenu IsVisible="showContextMenu"
+                 X="contextMenuX"
+                 Y="contextMenuY"
+                 SelectedMovies="contextMenuMovies"
+                 OnClose="CloseContextMenu"
+                 OnMoviesUpdated="HandleContextMenuUpdateAsync" />
+}
 @code {
     [Parameter] public string Id { get; set; }
 
@@ -314,6 +325,12 @@
     private List<string> dbActressSuggestions = new();
     private List<string> dbGenreSuggestions = new();
     private System.Timers.Timer? _debounceTimer;
+
+    // --- Context Menu State ---
+    private bool showContextMenu = false;
+    private double contextMenuX = 0;
+    private double contextMenuY = 0;
+    private List<MovieDto> contextMenuMovies = new();
 
     private class ScrollInfo
     {
@@ -566,12 +583,10 @@
     }
     private async void HandleNativeFileDrop(string physicalFilePath)
     {
-        // Only process the drop if we are actively editing
         if (!isEditing || string.IsNullOrWhiteSpace(physicalFilePath)) return;
 
         try
         {
-            // We have the raw physical path from Windows! Just read the bytes directly.
             _pendingImageBytes = await System.IO.File.ReadAllBytesAsync(physicalFilePath);
             _pendingImageExtension = System.IO.Path.GetExtension(physicalFilePath);
 
@@ -579,12 +594,51 @@
             string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
             _previewImageUrl = $"data:{mimeType};base64,{base64}";
 
-            // Because this was triggered by an external Windows thread, we MUST force Blazor to update the UI
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to read dropped file: {ex.Message}");
+        }
+    }
+    private void ShowContextMenu(MouseEventArgs e)
+    {
+        if (movie == null) return;
+
+        // The ContextMenu expects a list of MovieDto, but this page uses MovieDetailsDto.
+        // We create a temporary list with just this one movie to satisfy the component!
+        contextMenuMovies = new List<MovieDto>
+        {
+            new MovieDto
+            {
+                Id = movie.Id,
+                Title = movie.Title,
+                ImagePath = movie.ImagePath 
+            }
+        };
+
+        // Capture mouse coordinates for the menu spawn location
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        showContextMenu = true;
+    }
+
+    private void CloseContextMenu()
+    {
+        showContextMenu = false;
+    }
+
+    private async Task HandleContextMenuUpdateAsync()
+    {
+        var checkExists = await MoviesRepo.GetMovieDetailsAsync(Id);
+
+        if (checkExists == null)
+        {
+            Nav.NavigateTo("/");
+        }
+        else
+        {
+            await FetchAndLoadMovieAsync();
         }
     }
     public void Dispose()
