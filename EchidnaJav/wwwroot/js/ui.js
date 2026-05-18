@@ -139,3 +139,99 @@ window.clickOutsideHandler = {
         }
     }
 };
+
+window.imageInterop = {
+    setup: function (dotNetHelper, elementId) {
+        const dropZone = document.getElementById(elementId);
+
+        // 🔥 FIX 1: Stop the MAUI WebView from hijacking the drop globally!
+        window.addEventListener("dragenter", function (e) { e.preventDefault(); }, false);
+        window.addEventListener("dragover", function (e) { e.preventDefault(); }, false);
+        window.addEventListener("drop", function (e) { e.preventDefault(); }, false);
+
+        // 1. Handle Paste (Ctrl+V) anywhere on the window
+        window.addEventListener('paste', function (e) {
+            let items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf("image") !== -1) {
+                    e.preventDefault();
+                    let blob = items[i].getAsFile();
+                    imageInterop.readAndSend(blob, dotNetHelper);
+                    return;
+                }
+            }
+        });
+
+        // 2. Handle Drag & Drop on the specific poster element
+        if (dropZone) {
+
+            // 🔥 FIX 2: You MUST prevent default on 'dragenter' too, or 'drop' never fires!
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'copy'; // Forces the + icon
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    let file = e.dataTransfer.files[0];
+                    if (file.type.indexOf("image") !== -1) {
+                        imageInterop.readAndSend(file, dotNetHelper);
+                    }
+                }
+            });
+        }
+    },
+    readAndSend: function (file, dotNetHelper) {
+        let reader = new FileReader();
+        reader.onload = function (e) {
+            // Strip the header from the base64 string
+            let base64 = e.target.result.split(',')[1];
+            let extension = file.name ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg';
+
+            // Send the raw base64 data to Blazor
+            dotNetHelper.invokeMethodAsync('OnImageReceived', base64, extension);
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+window.setupDragAndDrop = (dotNetHelper, elementId) => {
+    const dropZone = document.getElementById(elementId);
+    if (!dropZone) return;
+
+    // 1. Force the MAUI window to stop blocking drops globally
+    window.addEventListener("dragover", e => e.preventDefault(), false);
+    window.addEventListener("drop", e => e.preventDefault(), false);
+
+    // 2. Allow our specific div to accept the file
+    dropZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy'; // Forces the 'plus' cursor!
+    });
+
+    // 3. Process the file and send it to C#
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.type.indexOf("image") !== -1) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const base64 = event.target.result.split(',')[1];
+                    const ext = file.name ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg';
+                    dotNetHelper.invokeMethodAsync('OnImageReceived', base64, ext);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+    });
+};

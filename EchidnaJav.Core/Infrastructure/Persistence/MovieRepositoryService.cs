@@ -25,16 +25,24 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<bool> RegenerateMetadataAsync(string movieId);
         Task<bool> RegenerateMetadataFromUrlsAsync(string movieId, List<ManualUrlScrapeRequest> requests);
         Task<bool> DeleteMovieAsync(string movieId);
+        Task<List<string>> SearchGenreNamesAsync(string query);
+        Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto);
     }
 
     public class MovieRepositoryService : IMovieRepositoryService
     {
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
         private readonly IImageService _imageService;
-        private readonly IMovieScrapeService _scrapeService; 
+        private readonly IMovieScrapeService _scrapeService;
         private readonly INfoGeneratorService _nfoGenerator;
         private readonly IActressScrapeQueue _actressQueue;
-        public MovieRepositoryService(IDbContextFactory<AppDbContext> dbFactory, IImageService imageService, IMovieScrapeService scrapeService, INfoGeneratorService nfoGenerator, IActressScrapeQueue actressQueue)
+
+        public MovieRepositoryService(
+            IDbContextFactory<AppDbContext> dbFactory,
+            IImageService imageService,
+            IMovieScrapeService scrapeService,
+            INfoGeneratorService nfoGenerator,
+            IActressScrapeQueue actressQueue)
         {
             _dbFactory = dbFactory;
             _imageService = imageService;
@@ -49,13 +57,11 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         {
             var query = db.Movies.AsNoTracking().AsQueryable();
 
-            // 1. Exact Actress Filter
             if (!string.IsNullOrWhiteSpace(queryParams.SearchActress))
             {
                 query = query.Where(m => m.MovieActresses.Any(a => a.Actress.Name == queryParams.SearchActress));
             }
 
-            // 2. Multi-term "Path-Aware" Search Text Logic
             if (!string.IsNullOrWhiteSpace(queryParams.SearchText))
             {
                 var terms = queryParams.SearchText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -88,11 +94,9 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 }
             }
 
-            // 3. Explicit SQL-Safe File Extension Filter
             query = query.Where(m => m.Files.Any(f =>
                 MediaConstants.VideoExtensions.Any(ext => f.FileName.EndsWith(ext))));
 
-            // 4. Image Coverage Filter
             if (queryParams.MissingImageOnly)
             {
                 query = query.Where(m => string.IsNullOrEmpty(m.PrimaryImagePath));
@@ -178,13 +182,28 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
             if (movie != null)
             {
-                // Materialize the collection in-memory first, then execute safely
                 movie.Files = movie.Files
                     .Where(f => MediaConstants.VideoExtensions.Any(ext => f.FileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
             }
 
             return movie;
+        }
+
+        public async Task<List<string>> SearchGenreNamesAsync(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return new List<string>();
+
+            using var db = _dbFactory.CreateDbContext();
+            string lowerQuery = query.ToLower();
+
+            return await db.Genres
+                .AsNoTracking()
+                .Where(g => g.Name != null && g.Name.ToLower().Contains(lowerQuery))
+                .OrderBy(g => g.Name)
+                .Select(g => g.Name!)
+                .Take(10)
+                .ToListAsync();
         }
 
         #endregion
@@ -196,7 +215,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             using var db = _dbFactory.CreateDbContext();
             string movieId = scrapedData.UniqueID.Value.ToUpper();
 
-            // 1. Fetch complete tracking graph including nested relationship targets
             var movie = await db.Movies
                 .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
                 .Include(m => m.MovieActresses).ThenInclude(ma => ma.Actress)
@@ -209,7 +227,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 db.Movies.Add(movie);
             }
 
-            // --- Map Scalar Properties ---
             movie.NormalizedId = movieId.Replace("-", "").Replace(" ", "");
             movie.Title = scrapedData.Title;
             movie.OriginalTitle = scrapedData.OriginalTitle;
@@ -219,10 +236,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             movie.Series = scrapedData.Series;
             movie.Plot = scrapedData.Plot;
 
-            if (scrapedData.Runtime > 0)
-            {
-                movie.Runtime = scrapedData.Runtime;
-            }
+            if (scrapedData.Runtime > 0) movie.Runtime = scrapedData.Runtime;
 
             movie.PrimaryImagePath = primaryImagePath;
             movie.DateAdded ??= DateTime.UtcNow;
@@ -234,12 +248,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             }
 
             var primaryRating = scrapedData.Ratings.FirstOrDefault();
-            if (primaryRating != null)
-            {
-                movie.Rating = primaryRating.Value;
-            }
+            if (primaryRating != null) movie.Rating = primaryRating.Value;
 
-            // --- 2. Safely Synchronize Discovered Files ---
             foreach (string filePath in mediaFiles)
             {
                 if (!movie.Files.Any(f => f.FilePath != null && f.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
@@ -261,27 +271,21 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 }
             }
 
-            // --- 3. Differential Synchronization of Relationships ---
             await SyncGenresAsync(db, movie, scrapedData.Genres);
             await SyncActressesAsync(db, movie, scrapedData.Actors);
 
-            // --- 4. Single Atomic Flush Commit ---
-            // Guarantees all primary keys and temporary mapping references resolve natively
             await db.SaveChangesAsync();
-
             return movie;
         }
 
         private async Task SyncGenresAsync(AppDbContext db, Movie movie, List<string> scrapedGenres)
         {
-            // Sanitize target inputs cleanly
             var targetGenres = scrapedGenres
                 .Where(g => !string.IsNullOrWhiteSpace(g))
                 .Select(g => g.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            // 1. Remove existing join entities no longer represented in the scraped payload
             var orphansToRemove = movie.MovieGenres
                 .Where(mg => mg.Genre != null && !targetGenres.Contains(mg.Genre.Name, StringComparer.OrdinalIgnoreCase))
                 .ToList();
@@ -289,39 +293,24 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             foreach (var orphan in orphansToRemove)
             {
                 movie.MovieGenres.Remove(orphan);
-                db.Remove(orphan); // Force explicit database join table deletion
+                db.Remove(orphan);
             }
 
-            // 2. Map new active incoming connections
             foreach (string genreName in targetGenres)
             {
-                // Skip execution if parent entity already holds an active bridge
                 if (movie.MovieGenres.Any(mg => mg.Genre != null && mg.Genre.Name.Equals(genreName, StringComparison.OrdinalIgnoreCase)))
-                {
                     continue;
-                }
 
-                // Intercept pending untracked runtime allocations stored directly inside memory buffers
-                var genre = db.Genres.Local.FirstOrDefault(g => g.Name.Equals(genreName, StringComparison.OrdinalIgnoreCase));
-
-                if (genre == null)
-                {
-                    genre = await db.Genres.FirstOrDefaultAsync(g => g.Name.ToLower() == genreName.ToLower());
-                }
+                var genre = db.Genres.Local.FirstOrDefault(g => g.Name.Equals(genreName, StringComparison.OrdinalIgnoreCase))
+                         ?? await db.Genres.FirstOrDefaultAsync(g => g.Name.ToLower() == genreName.ToLower());
 
                 if (genre == null)
                 {
                     genre = new Genre { Name = genreName };
                     db.Genres.Add(genre);
-                    // Notice: Mid-stream SaveChanges entirely stripped out
                 }
 
-                movie.MovieGenres.Add(new MovieGenre
-                {
-                    MovieId = movie.Id,
-                    Movie = movie,
-                    Genre = genre
-                });
+                movie.MovieGenres.Add(new MovieGenre { MovieId = movie.Id, Movie = movie, Genre = genre });
             }
         }
 
@@ -332,7 +321,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 .DistinctBy(a => a.Name.Trim(), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            // 1. Flush outdated mapping relationships safely
             var orphansToRemove = movie.MovieActresses
                 .Where(ma => ma.Actress != null && !targetActors.Any(ta => ta.Name.Trim().Equals(ma.Actress.Name, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
@@ -343,43 +331,26 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 db.Remove(orphan);
             }
 
-            // 2. Synchronize active state structures sequentially
             for (int i = 0; i < targetActors.Count; i++)
             {
                 var actorDto = targetActors[i];
                 string cleanName = actorDto.Name.Trim();
 
-                // --- STEP A: Fetch or Create the Actress Entity ---
-                var actress = db.Actresses.Local.FirstOrDefault(a => a.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
-
-                if (actress == null)
-                {
-                    actress = await db.Actresses.FirstOrDefaultAsync(a =>
-                        a.Name.ToLower() == cleanName.ToLower() ||
-                        a.AltNames.Any(alt => alt != null && alt.Name.ToLower() == cleanName.ToLower()));
-                }
+                var actress = db.Actresses.Local.FirstOrDefault(a => a.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase))
+                           ?? await db.Actresses.FirstOrDefaultAsync(a =>
+                                  a.Name.ToLower() == cleanName.ToLower() ||
+                                  a.AltNames.Any(alt => alt != null && alt.Name.ToLower() == cleanName.ToLower()));
 
                 if (actress == null)
                 {
                     actress = new Actress { Name = cleanName };
                     db.Actresses.Add(actress);
-
                     await _actressQueue.QueueActressAsync(cleanName);
                 }
-                else
+                else if (db.Entry(actress).State != EntityState.Added)
                 {
-                    if (db.Entry(actress).State != EntityState.Added)
-                    {
-                        bool hasImages = await db.Entry(actress)
-                                                 .Collection(a => a.Images)
-                                                 .Query()
-                                                 .AnyAsync();
-
-                        if (!hasImages)
-                        {
-                            await _actressQueue.QueueActressAsync(cleanName);
-                        }
-                    }
+                    bool hasImages = await db.Entry(actress).Collection(a => a.Images).Query().AnyAsync();
+                    if (!hasImages) await _actressQueue.QueueActressAsync(cleanName);
                 }
 
                 var existingJoin = movie.MovieActresses.FirstOrDefault(ma => ma.Actress != null && ma.Actress.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
@@ -400,36 +371,118 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 }
             }
         }
+
+        #endregion
+
         #region File & Metadata Operations
+
+        // 🔥 REFACTOR: Centralized directory resolution
+        private string? GetTargetDirectory(Movie movie)
+        {
+            var firstValidFile = movie.Files?.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FilePath) && File.Exists(f.FilePath));
+            if (firstValidFile != null) return Path.GetDirectoryName(firstValidFile.FilePath);
+
+            if (!string.IsNullOrWhiteSpace(movie.PrimaryImagePath) && File.Exists(movie.PrimaryImagePath))
+                return Path.GetDirectoryName(movie.PrimaryImagePath);
+
+            return null;
+        }
+
+        // 🔥 REFACTOR: Centralized NFO and Cache generation orchestrator
+        private async Task FinalizeMetadataUpdateAsync(Movie movie, MovieMetadata scrapedDto, string targetCoverPath, string targetDirectory)
+        {
+            var existingFiles = movie.Files.Where(f => !string.IsNullOrWhiteSpace(f.FilePath)).Select(f => f.FilePath!).ToList();
+
+            await UpsertScrapedMovieAsync(scrapedDto, targetCoverPath, existingFiles);
+
+            if (File.Exists(targetCoverPath))
+            {
+                await _imageService.GenerateImagesAsync(targetCoverPath, forceOverwrite: true);
+            }
+
+            await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDirectory);
+        }
+        public async Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Id)) return false;
+
+            using var db = _dbFactory.CreateDbContext();
+
+            var movie = await db.Movies
+                .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+                .Include(m => m.MovieActresses).ThenInclude(ma => ma.Actress)
+                .Include(m => m.Files)
+                .FirstOrDefaultAsync(m => m.Id == dto.Id);
+
+            if (movie == null) return false;
+
+            // 1. Map Scalar Properties
+            movie.Title = dto.Title ?? string.Empty;
+            movie.Runtime = dto.Runtime;
+            movie.Studio = dto.Studio;
+            movie.Director = dto.Director;
+            movie.Plot = dto.Plot;
+
+            if (dto.Premiered.HasValue)
+            {
+                movie.Premiered = dto.Premiered.Value;
+                movie.Year = dto.Premiered.Value.Year;
+            }
+            else
+            {
+                movie.Premiered = null;
+                movie.Year = 0;
+            }
+
+            // 2. Sync Relationships
+            await SyncGenresAsync(db, movie, dto.Genres);
+
+            var mappedActors = dto.Cast
+                .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+                .Select(c => new ActorData { Name = c.Name.Trim() })
+                .ToList();
+
+            await SyncActressesAsync(db, movie, mappedActors);
+
+            // 3. Determine the target directory for files
+            var targetDirectory = GetTargetDirectory(movie);
+
+            // 🔥 NEW: 4. Handle Image Update atomically BEFORE SaveChanges
+            if (dto.NewCoverImageBytes != null && !string.IsNullOrWhiteSpace(dto.NewCoverImageExtension) && !string.IsNullOrWhiteSpace(targetDirectory))
+            {
+                string targetCoverPath = Path.Combine(targetDirectory, $"{movie.Id}-cover{dto.NewCoverImageExtension}");
+
+                // Write the physical file
+                await File.WriteAllBytesAsync(targetCoverPath, dto.NewCoverImageBytes);
+
+                // Tell EF Core to update the database path
+                movie.PrimaryImagePath = targetCoverPath;
+
+                // Generate cache thumbnails
+                await _imageService.GenerateImagesAsync(targetCoverPath, forceOverwrite: true);
+            }
+
+            // 5. Atomic Save (Updates text fields, relationships, and image path all at once!)
+            await db.SaveChangesAsync();
+
+            // 6. Update local NFO file
+            if (!string.IsNullOrWhiteSpace(targetDirectory) && Directory.Exists(targetDirectory))
+            {
+                await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDirectory);
+            }
+
+            return true;
+        }
+
         public async Task RescanMovieDirectoryAsync(string movieId)
         {
             using var db = _dbFactory.CreateDbContext();
 
-            var movie = await db.Movies
-                .Include(m => m.Files)
-                .FirstOrDefaultAsync(m => m.Id == movieId);
+            var movie = await db.Movies.Include(m => m.Files).FirstOrDefaultAsync(m => m.Id == movieId);
+            if (movie == null) return;
 
-            if (movie == null)
-            {
-                return;
-            }
-
-            string? directoryPath = null;
-
-            var firstValidFile = movie.Files.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FilePath) && File.Exists(f.FilePath));
-            if (firstValidFile != null)
-            {
-                directoryPath = Path.GetDirectoryName(firstValidFile.FilePath);
-            }
-            else if (!string.IsNullOrWhiteSpace(movie.PrimaryImagePath) && File.Exists(movie.PrimaryImagePath))
-            {
-                directoryPath = Path.GetDirectoryName(movie.PrimaryImagePath);
-            }
-
-            if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
-            {
-                return;
-            }
+            string? directoryPath = GetTargetDirectory(movie);
+            if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath)) return;
 
             var allowedExtensions = new HashSet<string>(MediaConstants.VideoExtensions, StringComparer.OrdinalIgnoreCase)
             {
@@ -472,7 +525,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             foreach (var file in filesToRemove)
             {
                 movie.Files.Remove(file);
-                db.Files.Remove(file); 
+                db.Files.Remove(file);
                 hasChanges = true;
             }
 
@@ -520,108 +573,116 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 hasChanges = true;
             }
 
-            if (hasChanges)
+            if (hasChanges) await db.SaveChangesAsync();
+        }
+
+        public async Task<bool> RegenerateMetadataAsync(string movieId)
+        {
+            try
             {
-                await db.SaveChangesAsync();
+                using var db = _dbFactory.CreateDbContext();
+                var movie = await db.Movies.Include(m => m.Files).FirstOrDefaultAsync(m => m.Id == movieId);
+                if (movie == null) return false;
+
+                string? targetDirectory = GetTargetDirectory(movie);
+                if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory)) return false;
+
+                string targetCoverPath = Path.Combine(targetDirectory, $"{movie.Id}-cover.jpg");
+                var scrapedDto = await _scrapeService.ScrapeMovieAsync(movie.Id, targetCoverPath, LanguageType.English);
+
+                if (scrapedDto == null) return false;
+
+                await FinalizeMetadataUpdateAsync(movie, scrapedDto, targetCoverPath, targetDirectory);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
+
+        public async Task<bool> RegenerateMetadataFromUrlsAsync(string movieId, List<ManualUrlScrapeRequest> requests)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var movie = await db.Movies.Include(m => m.Files).FirstOrDefaultAsync(m => m.Id == movieId);
+            if (movie == null) return false;
+
+            string? targetDirectory = GetTargetDirectory(movie);
+            if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory)) return false;
+
+            string targetCoverPath = Path.Combine(targetDirectory, $"{movie.Id}-cover.jpg");
+            var scrapedDto = await _scrapeService.ScrapeMovieFromMultipleUrlsAsync(movie.Id, requests, targetCoverPath, LanguageType.English);
+
+            if (scrapedDto == null) return false;
+
+            await FinalizeMetadataUpdateAsync(movie, scrapedDto, targetCoverPath, targetDirectory);
+            return true;
+        }
+
         public async Task<bool> MoveMovieToFolderAsync(string movieId, string destinationFolder)
         {
-            if (string.IsNullOrWhiteSpace(movieId) || string.IsNullOrWhiteSpace(destinationFolder))
-                return false;
+            if (string.IsNullOrWhiteSpace(movieId) || string.IsNullOrWhiteSpace(destinationFolder)) return false;
 
             using var db = _dbFactory.CreateDbContext();
+            var movie = await db.Movies.Include(m => m.Files).FirstOrDefaultAsync(m => m.Id == movieId);
 
-            var movie = await db.Movies
-                .Include(m => m.Files)
-                .FirstOrDefaultAsync(m => m.Id == movieId);
-
-            if (movie == null || !movie.Files.Any())
-            {
-                return false;
-            }
-
-            if (!Directory.Exists(destinationFolder))
-            {
-                Directory.CreateDirectory(destinationFolder);
-            }
+            if (movie == null || !movie.Files.Any()) return false;
+            if (!Directory.Exists(destinationFolder)) Directory.CreateDirectory(destinationFolder);
 
             bool hasErrors = false;
-            if (!string.IsNullOrWhiteSpace(movie.PrimaryImagePath))
+
+            if (!string.IsNullOrWhiteSpace(movie.PrimaryImagePath) && File.Exists(movie.PrimaryImagePath))
             {
-                var sourceImagePath = movie.PrimaryImagePath;
+                var imageFileName = Path.GetFileName(movie.PrimaryImagePath);
+                var destImagePath = Path.Combine(destinationFolder, imageFileName);
 
-                if (File.Exists(sourceImagePath))
+                if (!File.Exists(destImagePath))
                 {
-                    var imageFileName = Path.GetFileName(sourceImagePath);
-                    var destImagePath = Path.Combine(destinationFolder, imageFileName);
-
-                    if (!File.Exists(destImagePath))
+                    try
                     {
-                        try
-                        {
-                            await Task.Run(() => File.Move(sourceImagePath, destImagePath));
-
-                            movie.PrimaryImagePath = destImagePath;
-                        }
-                        catch (Exception ex)
-                        {
-                            hasErrors = true;
-                        }
-                    }
-                    else
-                    {
+                        await Task.Run(() => File.Move(movie.PrimaryImagePath, destImagePath));
                         movie.PrimaryImagePath = destImagePath;
                     }
+                    catch { hasErrors = true; }
                 }
                 else
                 {
-                    // Optional: you could set movie.PrimaryImagePath = null here if you want to clear dead links.
+                    movie.PrimaryImagePath = destImagePath;
                 }
             }
+
             foreach (var fileEntry in movie.Files)
             {
-                var sourcePath = fileEntry.FilePath;
+                if (string.IsNullOrWhiteSpace(fileEntry.FilePath) || !File.Exists(fileEntry.FilePath)) continue;
 
-                if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
-                {
-                    continue;
-                }
-
-                var fileName = Path.GetFileName(sourcePath);
+                var fileName = Path.GetFileName(fileEntry.FilePath);
                 var destPath = Path.Combine(destinationFolder, fileName);
 
                 if (File.Exists(destPath))
                 {
-                    fileEntry.FilePath = destPath; 
+                    fileEntry.FilePath = destPath;
                     continue;
                 }
 
                 try
                 {
-                    await Task.Run(() => File.Move(sourcePath, destPath));
+                    await Task.Run(() => File.Move(fileEntry.FilePath, destPath));
                     fileEntry.FilePath = destPath;
                 }
-                catch (Exception ex)
-                {
-                    hasErrors = true;
-                }
+                catch { hasErrors = true; }
             }
 
             await db.SaveChangesAsync();
-
             return !hasErrors;
         }
 
         public async Task UpdateMoviePathsAsync(string movieId, List<string> newFilePaths)
         {
-            // This is useful if an external process moved the files and you just need to update the DB
             using var db = _dbFactory.CreateDbContext();
             var movie = await db.Movies.Include(m => m.Files).FirstOrDefaultAsync(m => m.Id == movieId);
 
             if (movie == null) return;
 
-            // Simple wipe-and-replace strategy for file paths
             db.Files.RemoveRange(movie.Files);
 
             foreach (var path in newFilePaths)
@@ -645,105 +706,9 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             await db.SaveChangesAsync();
         }
 
-        public async Task<bool> RegenerateMetadataAsync(string movieId)
-        {
-            try
-            {
-                using var db = _dbFactory.CreateDbContext();
-
-                // 1. Fetch the movie to find out where it lives on the hard drive
-                var movie = await db.Movies
-                    .Include(m => m.Files)
-                    .FirstOrDefaultAsync(m => m.Id == movieId);
-
-                if (movie == null) return false;
-
-                // 2. Determine the physical target directory
-                var firstValidFile = movie.Files.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FilePath) && File.Exists(f.FilePath));
-                string? targetDirectory = firstValidFile != null ? Path.GetDirectoryName(firstValidFile.FilePath) : null;
-
-                // Fallback to cover image path if video files are missing
-                if (string.IsNullOrWhiteSpace(targetDirectory) && !string.IsNullOrWhiteSpace(movie.PrimaryImagePath) && File.Exists(movie.PrimaryImagePath))
-                {
-                    targetDirectory = Path.GetDirectoryName(movie.PrimaryImagePath);
-                }
-
-                if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory))
-                {
-                    // We can't regenerate metadata if we don't know where to save the cover/.nfo!
-                    return false;
-                }
-
-                string targetCoverPath = Path.Combine(targetDirectory, $"{movie.Id}-cover.jpg");
-
-                var scrapedDto = await _scrapeService.ScrapeMovieAsync(movie.Id, targetCoverPath, LanguageType.English);
-
-                if (scrapedDto == null) return false;
-
-                var existingFiles = movie.Files
-                    .Where(f => !string.IsNullOrWhiteSpace(f.FilePath))
-                    .Select(f => f.FilePath!)
-                    .ToList();
-
-                await UpsertScrapedMovieAsync(scrapedDto, targetCoverPath, existingFiles);
-
-                if (File.Exists(targetCoverPath))
-                {
-                    await _imageService.GenerateImagesAsync(targetCoverPath, forceOverwrite: true);
-                }
-
-                await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDirectory);
-                return true;
-            }
-            catch (Exception)
-            {
-
-                return false;
-            }
-            
-        }
-        public async Task<bool> RegenerateMetadataFromUrlsAsync(string movieId, List<ManualUrlScrapeRequest> requests)
-        {
-            using var db = _dbFactory.CreateDbContext();
-
-            var movie = await db.Movies.Include(m => m.Files).FirstOrDefaultAsync(m => m.Id == movieId);
-            if (movie == null) return false;
-
-            // Determine target directory
-            var firstValidFile = movie.Files.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FilePath) && File.Exists(f.FilePath));
-            string? targetDirectory = firstValidFile != null ? Path.GetDirectoryName(firstValidFile.FilePath) : null;
-            if (string.IsNullOrWhiteSpace(targetDirectory)) targetDirectory = Path.GetDirectoryName(movie.PrimaryImagePath);
-            if (string.IsNullOrWhiteSpace(targetDirectory) || !Directory.Exists(targetDirectory)) return false;
-
-            string targetCoverPath = Path.Combine(targetDirectory, $"{movie.Id}-cover.jpg");
-
-            // 🔥 Call the new Direct URL Scrape method
-            var scrapedDto = await _scrapeService.ScrapeMovieFromMultipleUrlsAsync(movie.Id, requests, targetCoverPath, LanguageType.English);
-
-            if (scrapedDto == null) return false;
-
-            var existingFiles = movie.Files.Where(f => !string.IsNullOrWhiteSpace(f.FilePath)).Select(f => f.FilePath!).ToList();
-
-            // Save to DB
-            await UpsertScrapedMovieAsync(scrapedDto, targetCoverPath, existingFiles);
-
-            // Refresh thumbnail cache
-            if (File.Exists(targetCoverPath))
-            {
-                await _imageService.GenerateImagesAsync(targetCoverPath, forceOverwrite: true);
-            }
-
-            // Regenerate .nfo
-            await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDirectory);
-
-            return true;
-        }
-
         public async Task<bool> DeleteMovieAsync(string movieId)
         {
             using var db = _dbFactory.CreateDbContext();
-
-            // Fetch the movie
             var movie = await db.Movies.FirstOrDefaultAsync(m => m.Id == movieId);
 
             if (movie == null) return false;
@@ -752,7 +717,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
             return true;
         }
-        #endregion
 
         #endregion
     }

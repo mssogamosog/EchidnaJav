@@ -17,6 +17,8 @@ namespace EchidnaJav.Core.Domain.DTOs
         public List<string> Genres { get; set; } = new();
         public List<FileDto> Files { get; set; } = new();
         public List<MovieActorDto> Cast { get; set; } = new();
+        public byte[]? NewCoverImageBytes { get; set; }
+        public string? NewCoverImageExtension { get; set; }
     }
 
     public class FileDto

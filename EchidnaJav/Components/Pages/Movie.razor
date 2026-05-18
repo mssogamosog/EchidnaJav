@@ -3,7 +3,8 @@
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
-@inject IMovieRepositoryService Repo
+@inject IMovieRepositoryService MoviesRepo
+@inject IActressRepositoryService ActressRepo
 @inject IImageService ImageService
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -15,19 +16,34 @@
     <!-- TITLE -->
     <div class="title-area">
         <h4 class="movie-id">@movie?.Id</h4>
-        <h1 class="movie-title">@movie?.Title</h1>
+        @if (isEditing)
+        {
+            <input @bind="movie!.Title" class="form-control title-input" style="font-size: 1.8rem; width: 100%; font-weight: bold;" />
+        }
+        else
+        {
+            <h1 class="movie-title">@movie?.Title</h1>
+        }
     </div>
 
     <!-- FULL IMAGE -->
-    <div class="media-header-area">
-        <img src="@fullImage" class="full-cover-img" />
+    <div class="media-header-area" id="cover-drop-zone" style="position: relative;">
 
-        <div class="media-controls-overlay">
-            @if (movie?.Files?.Any() == true)
-            {
+        <img src="@(!string.IsNullOrEmpty(_previewImageUrl) ? _previewImageUrl : fullImage)" class="full-cover-img" />
+
+        @if (isEditing)
+        {
+            <!-- 🔥 FIX 1: Clicking this div triggers native C# FilePicker -->
+            <div class="image-drop-overlay" @onclick="PickImageNative" style="cursor: pointer;">
+                <span style="font-weight: bold; text-align: center; padding: 10px;">Drop new cover here (or click)</span>
+            </div>
+        }
+        else if (movie?.Files?.Any() == true)
+        {
+            <div class="media-controls-overlay">
                 <button class="btn-play-main" @onclick="() => PlaybackService.PlayAllAsync(movie.Id, movie.Files)">▶ Play</button>
-            }
-        </div>
+            </div>
+        }
     </div>
 
     <!-- SIDEBAR -->
@@ -36,90 +52,209 @@
         <p>(Coming later)</p>
     </div>
 
-    <!-- ✅ DETAILS WRAPPER (IMPORTANT) -->
+    <!-- DETAILS WRAPPER -->
     <div class="details-area">
         <div class="details-grid">
 
-            <!-- POSTER -->
+            <!-- POSTER (With Drag & Drop support) -->
             <div class="poster-container">
                 <img src="@posterImage" class="poster-img" />
             </div>
 
             <!-- INFO -->
             <div class="info-main">
-                <div class="movie-id">@movie?.Id</div>
-                <div class="info-grid">
-                    <div>Released:</div>
-                    <div>@(movie?.Premiered?.ToString("yyyy-MM-dd") ?? "Unknown")</div>
+                <!-- Flex header for ID and Minimalist Edit Buttons -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div class="movie-id">@movie?.Id</div>
 
-                    <div>Runtime:</div>
-                    <div>@(movie?.Runtime ?? 0) min</div>
-
-                    <div>Studio:</div>
-                    <div>@movie?.Studio</div>
-
-                    <div>Director:</div>
-                    <div>@movie?.Director</div>
+                    <div class="edit-controls" style="display: flex; gap: 8px;">
+                        @if (isEditing)
+                        {
+                            <button class="btn-minimal" @onclick="ToggleEditModeAsync">Cancel</button>
+                            <button class="btn-minimal primary-action" @onclick="SaveChanges">Save</button>
+                        }
+                        else
+                        {
+                            <button class="btn-minimal" @onclick="ToggleEditModeAsync">Edit</button>
+                        }
+                    </div>
                 </div>
 
-                @if (!string.IsNullOrEmpty(movie?.Plot))
+                <div class="info-grid">
+                    <div>Released:</div>
+                    <div>
+                        @if (isEditing)
+                        {
+                            <input type="date" @bind="movie!.Premiered" class="form-control" />
+                        }
+                        else
+                        {
+
+                            @(movie?.Premiered?.ToString("yyyy-MM-dd") ?? "Unknown")
+                        }
+                    </div>
+
+                    <div>Runtime:</div>
+                    <div>
+                        @if (isEditing)
+                        {
+                            <input type="number" @bind="movie!.Runtime" class="form-control" style="width: 80px;" />
+                        }
+                        else
+                        {
+
+                            @(movie?.Runtime ?? 0)
+                        }
+                        min
+                    </div>
+
+                    <div>Studio:</div>
+                    <div>
+                        @if (isEditing)
+                        {
+                            <input @bind="movie!.Studio" class="form-control" />
+                        }
+                        else
+                        {
+
+                            @movie?.Studio
+                        }
+                    </div>
+
+                    <div>Director:</div>
+                    <div>
+                        @if (isEditing)
+                        {
+                            <input @bind="movie!.Director" class="form-control" />
+                        }
+                        else
+                        {
+
+                            @movie?.Director
+                        }
+                    </div>
+                </div>
+
+                @if (isEditing || !string.IsNullOrWhiteSpace(movie?.Plot))
                 {
                     <div class="plot-box">
-                        <p>@movie.Plot</p>
+                        @if (isEditing)
+                        {
+                            <textarea @bind="movie!.Plot" class="form-control" rows="4" style="width: 100%; background: transparent; color: inherit;"></textarea>
+                        }
+                        else
+                        {
+                            <p style="margin: 0;">@movie?.Plot</p>
+                        }
                     </div>
                 }
             </div>
 
-            <!-- CAST -->
+            <!-- CAST (Edit Mode Tag Editor + Display Grid) -->
             <div class="cast-section">
                 <h4>Cast</h4>
-                @* The wrapper now controls the ghost button visibility via C# logic *@
-                <div class="cast-scroll-wrapper">
-        
-                    @if (canScrollLeft)
-                    {
-                        <button class="cast-nav-btn left" @onclick='() => ScrollCast("left")'>
-                            <svg viewBox="0 0 16 16" width="18" height="18"><path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" fill="currentColor" /></svg>
-                        </button>
-                    }
-        
-                    @* 🔥 The grid applies masks based on scroll position *@
-                    <div class="cast-grid @(canScrollLeft ? "mask-left" : "") @(canScrollRight ? "mask-right" : "")"
-                         id="castGrid"
-                         @onscroll="HandleScroll">
-                        @foreach (var actor in movie?.Cast ?? Enumerable.Empty<MovieActorDto>())
+                @if (isEditing)
+                {
+                    <div class="tag-editor">
+                        @foreach (var actor in movie!.Cast.ToList())
                         {
-                            <div class="actor-card" @onclick='() => Nav.NavigateTo($"/actress/{Uri.EscapeDataString(actor.Name)}")' style="cursor: pointer;">
-            
-                                @* 🔥 Check if we have an image, otherwise show the ghost circle *@
-                                @if (!string.IsNullOrEmpty(actor.ImagePath))
-                                {
-                                    <img src="@actor.ImagePath" class="actor-img" alt="@actor.Name" loading="lazy" />
-                                }
-                                else
-                                {
-                                    <div class="actor-img-placeholder"></div>
-                                }
-            
-                                <span>@actor.Name</span>
-                            </div>
+                            <span class="genre-tag">
+                                @actor.Name
+                                <button type="button" @onclick="() => movie.Cast.Remove(actor)">&times;</button>
+                            </span>
+                        }
+
+                        <input type="text"
+                               placeholder="Add actress..."
+                               @bind="newActressInput"
+                               @bind:event="oninput"
+                               @onkeyup="HandleActressKeyPress"
+                               list="actress-suggestions"
+                               class="form-control"
+                               style="width: 150px; padding: 4px 8px; font-size: 0.9rem;" />
+
+                        <datalist id="actress-suggestions">
+                            @foreach (var suggestion in dbActressSuggestions)
+                            {
+                                <option value="@suggestion" />
+                            }
+                        </datalist>
+                    </div>
+                }
+                else
+                {
+                    <div class="cast-scroll-wrapper">
+                        @if (canScrollLeft)
+                        {
+                            <button class="cast-nav-btn left" @onclick='() => ScrollCast("left")'>
+                                <svg viewBox="0 0 16 16" width="18" height="18"><path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" fill="currentColor" /></svg>
+                            </button>
+                        }
+
+                        <div class="cast-grid @(canScrollLeft ? "mask-left" : "") @(canScrollRight ? "mask-right" : "")"
+                             id="castGrid"
+                             @onscroll="HandleScroll">
+                            @foreach (var actor in movie?.Cast ?? Enumerable.Empty<MovieActorDto>())
+                            {
+                                <div class="actor-card" @onclick='() => Nav.NavigateTo($"/actress/{Uri.EscapeDataString(actor.Name)}")' style="cursor: pointer;">
+                                    @if (!string.IsNullOrEmpty(actor.ImagePath))
+                                    {
+                                        <img src="@actor.ImagePath" class="actor-img" alt="@actor.Name" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="actor-img-placeholder"></div>
+                                    }
+                                    <span>@actor.Name</span>
+                                </div>
+                            }
+                        </div>
+
+                        @if (canScrollRight)
+                        {
+                            <button class="cast-nav-btn right" @onclick='() => ScrollCast("right")'>
+                                <svg viewBox="0 0 16 16" width="18" height="18"><path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" fill="currentColor" /></svg>
+                            </button>
                         }
                     </div>
-
-                    @if (canScrollRight)
-                    {
-                        <button class="cast-nav-btn right" @onclick='() => ScrollCast("right")'>
-                            <svg viewBox="0 0 16 16" width="18" height="18"><path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" fill="currentColor" /></svg>
-                        </button>
-                    }
-                </div>
+                }
             </div>
 
-            <!-- TAGS -->
+            <!-- TAGS (Edit Mode Tag Editor + Display) -->
             <div class="tags-container">
-                @foreach (var g in movie?.Genres ?? Enumerable.Empty<string>())
+                @if (isEditing)
                 {
-                    <span class="genre-tag">@g</span>
+                    <div class="tag-editor">
+                        @foreach (var g in movie!.Genres.ToList())
+                        {
+                            <span class="genre-tag">
+                                @g
+                                <button type="button" @onclick="() => movie.Genres.Remove(g)">&times;</button>
+                            </span>
+                        }
+                        <input type="text"
+                               placeholder="Add genre..."
+                               @bind="newGenreInput"
+                               @bind:event="oninput"
+                               @onkeyup="HandleGenreKeyPress"
+                               list="genre-suggestions"
+                               class="form-control"
+                               style="width: 120px; padding: 4px 8px; font-size: 0.9rem;" />
+
+                        <datalist id="genre-suggestions">
+                            @foreach (var suggestion in dbGenreSuggestions)
+                            {
+                                <option value="@suggestion" />
+                            }
+                        </datalist>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var g in movie?.Genres ?? Enumerable.Empty<string>())
+                    {
+                        <span class="genre-tag">@g</span>
+                    }
                 }
             </div>
 
@@ -139,18 +274,47 @@
 
         </div>
     </div>
-
 </div>
-
 @code {
     [Parameter] public string Id { get; set; }
 
     private MovieDetailsDto? movie;
     private string? fullImage;
     private string? posterImage;
-    private bool _shouldScrollToTop = false;
+
+    // --- UI State ---
+    private bool isEditing = false;
     private bool canScrollLeft = false;
     private bool canScrollRight = false;
+    private bool _shouldScrollToTop = false;
+
+    // --- Draft Image State ---
+    private byte[]? _pendingImageBytes = null;
+    private string? _pendingImageExtension = null;
+    private string? _previewImageUrl = null;
+
+    // --- JS Interop State ---
+    private DotNetObjectReference<Movie>? _objRef;
+
+    // --- Autocomplete State ---
+    private string _newActressInput = "";
+    private string newActressInput
+    {
+        get => _newActressInput;
+        set { _newActressInput = value; TriggerActressSearch(); }
+    }
+
+    private string _newGenreInput = "";
+    private string newGenreInput
+    {
+        get => _newGenreInput;
+        set { _newGenreInput = value; TriggerGenreSearch(); }
+    }
+
+    private List<string> dbActressSuggestions = new();
+    private List<string> dbGenreSuggestions = new();
+    private System.Timers.Timer? _debounceTimer;
+
     private class ScrollInfo
     {
         public double ScrollLeft { get; set; }
@@ -158,33 +322,36 @@
         public double ClientWidth { get; set; }
     }
 
-    private async Task HandleScroll()
-    {
-        // JavaScript helper to get scroll metrics
-        var info = await JS.InvokeAsync<ScrollInfo>("getScrollInfo", "castGrid");
-
-        // Threshold of 5px to avoid sub-pixel jitter
-        canScrollLeft = info.ScrollLeft > 5;
-        canScrollRight = info.ScrollLeft + info.ClientWidth < info.ScrollWidth - 5;
-
-        StateHasChanged();
-    }
+    // ==========================================
+    // 1. INITIALIZATION & DATA LOADING
+    // ==========================================
     protected override async Task OnParametersSetAsync()
     {
-        // 1. Clear old state to prevent UI ghosting/flicker
         _shouldScrollToTop = true;
-        movie = null;
-        fullImage = null;
-        posterImage = null;
+        isEditing = false;
 
-        // 2. Fetch new data
-        movie = await Repo.GetMovieDetailsAsync(Id);
+        await FetchAndLoadMovieAsync();
+    }
+
+    private async Task FetchAndLoadMovieAsync()
+    {
+        // 1. Fetch completely fresh data from the database
+        movie = await MoviesRepo.GetMovieDetailsAsync(Id);
 
         if (movie != null)
         {
             UI.SetFooterText(movie.Title);
+            await LoadImages();
+        }
+    }
+
+    private async Task LoadImages()
+    {
+        if (movie != null)
+        {
             fullImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Full);
             posterImage = await ImageService.GetImageAsync(movie.ImagePath, ImageType.Cover);
+
             if (movie.Cast != null)
             {
                 foreach (var actor in movie.Cast)
@@ -197,27 +364,206 @@
             }
         }
     }
+
+    // ==========================================
+    // 2. SCROLLING & JS LOGIC
+    // ==========================================
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Initial check to see if the list overflows on load
+            // Connect this C# instance to the Javascript file so Drag & Drop works!
+            _objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("imageInterop.setup", _objRef, "cover-drop-zone");
+
             await HandleScroll();
         }
-        // 2. Fire the Javascript scroll reset right after the DOM updates
+
         if (_shouldScrollToTop)
         {
             _shouldScrollToTop = false;
-            try
-            {
-                await JS.InvokeVoidAsync("setScrollPos", 0);
-            }
-            catch { /* Ignore if JS isn't ready yet */ }
+            try { await JS.InvokeVoidAsync("setScrollPos", 0); } catch { }
         }
     }
+    private async Task PickImageNative()
+    {
+        try
+        {
+            var customFileType = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.WinUI, new[] { ".jpg", ".jpeg", ".png", ".webp" } },
+                { DevicePlatform.MacCatalyst, new[] { "public.image" } }
+            });
+
+            // This is 100% immune to the WebView2 0x80000003 crash
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Select a new Cover Image",
+                FileTypes = customFileType
+            });
+
+            if (result != null)
+            {
+                using var stream = await result.OpenReadAsync();
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                _pendingImageBytes = ms.ToArray();
+                _pendingImageExtension = Path.GetExtension(result.FileName);
+
+                var base64 = Convert.ToBase64String(_pendingImageBytes);
+                string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+                _previewImageUrl = $"data:{mimeType};base64,{base64}";
+
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Fails gracefully if the user closes the window without picking a file
+            Console.WriteLine($"Native Picker closed: {ex.Message}");
+        }
+    }
+    [JSInvokable]
+    public void OnImageReceived(string base64String, string extension)
+    {
+        if (!isEditing) return;
+
+        _pendingImageBytes = Convert.FromBase64String(base64String);
+        _pendingImageExtension = extension;
+
+        string mimeType = extension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+        _previewImageUrl = $"data:{mimeType};base64,{base64String}";
+
+        StateHasChanged();
+    }
+    private async Task HandleScroll()
+    {
+        try
+        {
+            var info = await JS.InvokeAsync<ScrollInfo>("getScrollInfo", "castGrid");
+            canScrollLeft = info.ScrollLeft > 5;
+            canScrollRight = info.ScrollLeft + info.ClientWidth < info.ScrollWidth - 5;
+            StateHasChanged();
+        }
+        catch { }
+    }
+
     private async Task ScrollCast(string direction)
     {
         var distance = direction == "left" ? -300 : 300;
         await JS.InvokeVoidAsync("eval", $"document.getElementById('castGrid').scrollBy({{ left: {distance}, behavior: 'smooth' }})");
+    }
+
+    // ==========================================
+    // 3. EDIT MODE CONTROLS
+    // ==========================================
+    private async Task ToggleEditModeAsync()
+    {
+        if (isEditing)
+        {
+            // 🔥 Cancelled: Wipe draft image and refetch original data to guarantee clean paths
+            _pendingImageBytes = null;
+            _pendingImageExtension = null;
+            _previewImageUrl = null;
+            await FetchAndLoadMovieAsync();
+        }
+        isEditing = !isEditing;
+    }
+
+    private async Task SaveChanges()
+    {
+        if (movie == null) return;
+
+        // Pass the draft image into the DTO
+        movie.NewCoverImageBytes = _pendingImageBytes;
+        movie.NewCoverImageExtension = _pendingImageExtension;
+
+        // Save atomically
+        bool success = await MoviesRepo.UpdateMovieDetailsAsync(movie);
+
+        if (success)
+        {
+            _pendingImageBytes = null;
+            _pendingImageExtension = null;
+            _previewImageUrl = null;
+            isEditing = false;
+
+            // 🔥 Saved: Refetch fresh to guarantee paths don't get corrupted
+            await FetchAndLoadMovieAsync();
+        }
+    }
+
+    
+    // ==========================================
+    // 4. AUTOCOMPLETE (ACTRESS & GENRE)
+    // ==========================================
+    private void TriggerActressSearch()
+    {
+        _debounceTimer?.Stop();
+        _debounceTimer = new System.Timers.Timer(300) { AutoReset = false };
+        _debounceTimer.Elapsed += async (s, e) =>
+        {
+            dbActressSuggestions = await ActressRepo.SearchActressNamesAsync(_newActressInput);
+            await InvokeAsync(StateHasChanged);
+        };
+        _debounceTimer.Start();
+    }
+
+    private async Task HandleActressKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newActressInput))
+        {
+            string cleanName = newActressInput.Trim();
+
+            if (!movie!.Cast.Any(a => a.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase)))
+            {
+                string? resolvedImagePath = null;
+
+                var details = await ActressRepo.GetActressDetailsAsync(cleanName);
+                if (details != null && details.Images.Any())
+                {
+                    resolvedImagePath = await ImageService.GetImageAsync(details.Images.First().Filepath, ImageType.Full);
+                }
+
+                movie.Cast.Add(new MovieActorDto
+                {
+                    Name = cleanName,
+                    ImagePath = resolvedImagePath
+                });
+            }
+            newActressInput = "";
+        }
+    }
+
+    private void TriggerGenreSearch()
+    {
+        _debounceTimer?.Stop();
+        _debounceTimer = new System.Timers.Timer(300) { AutoReset = false };
+        _debounceTimer.Elapsed += async (s, e) =>
+        {
+            dbGenreSuggestions = await MoviesRepo.SearchGenreNamesAsync(_newGenreInput);
+            await InvokeAsync(StateHasChanged);
+        };
+        _debounceTimer.Start();
+    }
+
+    private void HandleGenreKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newGenreInput))
+        {
+            string cleanGenre = newGenreInput.Trim();
+
+            if (!movie!.Genres.Contains(cleanGenre, StringComparer.OrdinalIgnoreCase))
+            {
+                movie.Genres.Add(cleanGenre);
+            }
+            newGenreInput = "";
+        }
+    }
+
+    public void Dispose()
+    {
+        _objRef?.Dispose();
     }
 }

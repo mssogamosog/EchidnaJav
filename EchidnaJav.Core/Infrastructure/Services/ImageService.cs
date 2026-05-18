@@ -29,6 +29,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         Task<string?> GetImageAsync(string originalPath, ImageType type);
         Task<string?> DownloadImageAsync( string destinationPath, string imageUrl);
         Task ImportCoverImageAsync(string movieId, string sourceFilePath);
+        Task SaveNewCoverImageAsync(string targetPath, byte[] imageData);
     }
 
     public class ImageService : IImageService
@@ -328,6 +329,24 @@ namespace EchidnaJav.Core.Infrastructure.Services
         public Task ImportCoverImageAsync(string movieId, string sourceFilePath)
         {
             throw new NotImplementedException();
+        }
+        public async Task SaveNewCoverImageAsync(string targetPath, byte[] imageData)
+        {
+            if (string.IsNullOrWhiteSpace(targetPath))
+                throw new ArgumentException("Target path cannot be empty.", nameof(targetPath));
+
+            if (imageData == null || imageData.Length == 0)
+                throw new ArgumentException("Image data cannot be empty.", nameof(imageData));
+
+            var directory = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllBytesAsync(targetPath, imageData);
+
+            await GenerateImagesAsync(targetPath, forceOverwrite: true);
         }
     }
 }

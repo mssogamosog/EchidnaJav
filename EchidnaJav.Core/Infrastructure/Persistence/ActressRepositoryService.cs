@@ -12,6 +12,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<ActressDetailsDto?> GetActressDetailsAsync(string name);
         Task SetDefaultActressImageAsync(string actressName, string filePath);
         Task<ActressData?> GetActressDataForScraperAsync(string name);
+        Task<List<string>> SearchActressNamesAsync(string query);
     }
 
     public class ActressRepositoryService : IActressRepositoryService
@@ -238,6 +239,27 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             }
 
             await db.SaveChangesAsync();
+        }
+        public async Task<List<string>> SearchActressNamesAsync(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return new List<string>();
+            }
+
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            string lowerQuery = query.ToLower();
+
+            var suggestions = await db.Actresses
+                .AsNoTracking() 
+                .Where(a => a.Name != null && a.Name.ToLower().Contains(lowerQuery))
+                .OrderBy(a => a.Name)
+                .Select(a => a.Name!)
+                .Take(10) 
+                .ToListAsync();
+
+            return suggestions;
         }
     }
 }
