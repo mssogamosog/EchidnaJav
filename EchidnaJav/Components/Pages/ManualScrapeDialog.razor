@@ -1,0 +1,100 @@
+﻿@using EchidnaJav.Core.Domain.DTOs
+@if (IsVisible)
+{
+    <div class="dialog-backdrop" @onclick="Close">
+        <div class="dialog-box" style="max-width: 600px;" @onclick:stopPropagation>
+            <h3>Dual Source URL Scraping</h3>
+            <p>Targeting: <strong>@MovieId</strong></p>
+
+            <div class="sources-list" style="max-height: 400px; overflow-y: auto; margin-bottom: 1rem;">
+                @for (int i = 0; i < _requests.Count; i++)
+                {
+                    int index = i; // Local variable for lambda capture
+                    var req = _requests[index];
+
+                    <div class="source-row" >
+                        <span class="priority-badge">#( @(index + 1) )</span>
+
+                        <select @bind="req.Source" style="width: 150px;">
+                            @foreach (var source in Enum.GetValues<ScraperSourceType>())
+                            {
+                                <option value="@source">@source</option>
+                            }
+                        </select>
+
+                        <input type="text" @bind="req.Url" placeholder="Paste URL here..." style="flex-grow: 1;" />
+
+                        @if (_requests.Count > 1)
+                        {
+                            <button class="btn-remove" @onclick="() => RemoveRow(index)" title="Remove Source">❌</button>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="dialog-actions" style="justify-content: space-between;">
+                <button class="btn-add" @onclick="AddRow" disabled="@(_requests.Count >= _maxScrapers)">
+                    + Add Another Source
+                </button>
+
+                <div>
+                    <button class="btn-cancel" @onclick="Close">Cancel</button>
+                    <button class="btn-confirm" @onclick="Submit" disabled="@(!CanSubmit)">Scrape Combined</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string MovieId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<List<ManualUrlScrapeRequest>> OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private List<ManualUrlScrapeRequest> _requests = new();
+    private int _maxScrapers = Enum.GetNames(typeof(ScraperSourceType)).Length;
+
+    // Only allow submission if at least one URL is filled out
+    private bool CanSubmit => _requests.Any(r => !string.IsNullOrWhiteSpace(r.Url));
+
+    protected override void OnParametersSet()
+    {
+        // Initialize with one empty row when the dialog opens
+        if (IsVisible && !_requests.Any())
+        {
+            _requests.Add(new ManualUrlScrapeRequest { Source = ScraperSourceType.JavLibrary });
+        }
+    }
+
+    private void AddRow()
+    {
+        if (_requests.Count < _maxScrapers)
+        {
+            _requests.Add(new ManualUrlScrapeRequest { Source = ScraperSourceType.JavDatabase });
+        }
+    }
+
+    private void RemoveRow(int index)
+    {
+        if (_requests.Count > 1)
+        {
+            _requests.RemoveAt(index);
+        }
+    }
+
+    private async Task Submit()
+    {
+        // Strip out any rows where the user left the URL blank before sending to the backend
+        var validRequests = _requests.Where(r => !string.IsNullOrWhiteSpace(r.Url)).ToList();
+
+        await OnConfirm.InvokeAsync(validRequests);
+        _requests.Clear();
+    }
+
+    private async Task Close()
+    {
+        _requests.Clear();
+        await OnCancel.InvokeAsync();
+    }
+}

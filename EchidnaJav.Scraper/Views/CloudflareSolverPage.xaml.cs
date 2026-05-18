@@ -79,7 +79,14 @@ public partial class CloudflareSolverPage : ContentPage
             rawCookies?.Trim('"') ?? string.Empty
         );
     }
-
+    private void OnContinueClicked(object sender, EventArgs e)
+    {
+        if (!_isResolved)
+        {
+            _isResolved = true;
+            _tcs.TrySetResult(true); // Signal success manually!
+        }
+    }
     protected override bool OnBackButtonPressed()
     {
         if (!_isResolved)

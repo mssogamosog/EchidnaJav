@@ -8,6 +8,7 @@ using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper;
 using EchidnaJav.Scraper.Interfaces;
 using EchidnaJav.Scraper.Services;
+using EchidnaJav.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -43,6 +44,7 @@ namespace EchidnaJav
             builder.Services.AddScoped<INavigationStateService, NavigationStateService>();
             builder.Services.AddScoped<ILocalMediaScanner, LocalMediaScanner>();
             builder.Services.AddScoped<IPlaybackService, PlaybackService>();
+            builder.Services.AddScoped<INativeDialogService, MauiNativeDialogService>();
 
             // UI & Runtime States
             builder.Services.AddSingleton<ImportState>();

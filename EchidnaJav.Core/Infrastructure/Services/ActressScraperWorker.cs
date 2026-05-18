@@ -33,7 +33,6 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -41,28 +40,19 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     var actressName = await _queue.DequeueAsync(stoppingToken);
 
                     using var scope = _scopeFactory.CreateScope();
-                    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
                     var scrapeService = scope.ServiceProvider.GetRequiredService<IScrapeActressService>();
-                    var imageService = scope.ServiceProvider.GetRequiredService<IImageService>();
 
-                    using var db = dbFactory.CreateDbContext();
-
-                    var dbActress = await db.Actresses.FirstOrDefaultAsync(a => a.Name == actressName, stoppingToken);
-
-                    if (dbActress == null) continue;
-
-                    _logger.LogInformation($"🔍 Background scraping data for: {actressName}");
+                    _logger.LogInformation("🔍 Background scraping data for: {ActressName}", actressName);
 
                     var scrapedData = new ActressData { Name = actressName };
 
                     await scrapeService.ScrapeActressAsync(scrapedData, LanguageType.English);
 
-                   
-                    _logger.LogInformation($"✅ Finished updating: {actressName}");
+                    _logger.LogInformation("✅ Finished updating: {ActressName}", actressName);
                 }
                 catch (OperationCanceledException)
                 {
-                    break;
+                    break; // Application is shutting down gracefully
                 }
                 catch (Exception ex)
                 {

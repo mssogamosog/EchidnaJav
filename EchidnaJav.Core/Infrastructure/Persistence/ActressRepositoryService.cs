@@ -11,6 +11,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task SaveScrapedActressAsync(ActressData scrapedData);
         Task<ActressDetailsDto?> GetActressDetailsAsync(string name);
         Task SetDefaultActressImageAsync(string actressName, string filePath);
+        Task<ActressData?> GetActressDataForScraperAsync(string name);
     }
 
     public class ActressRepositoryService : IActressRepositoryService
@@ -165,6 +166,49 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             };
 
             return dto;
+        }
+        public async Task<ActressData?> GetActressDataForScraperAsync(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            // 1. Fetch the actress with Images and AltNames (but NOT movies!)
+            var entity = await db.Actresses
+                .AsNoTracking()
+                .Include(a => a.Images)
+                .Include(a => a.AltNames) // <-- Added this!
+                .FirstOrDefaultAsync(a => a.Name != null && a.Name.ToLower() == name.ToLower());
+
+            if (entity == null) return null;
+
+            // 2. Map directly to the Scraper Data object
+            var scraperData = new ActressData
+            {
+                Name = entity.Name ?? string.Empty,
+                JapaneseName = entity.JapaneseName ?? string.Empty,
+                DobYear = entity.DobYear ?? 0,
+                DobMonth = entity.DobMonth ?? 0,
+                DobDay = entity.DobDay ?? 0,
+                Height = entity.Height ?? 0,
+                Cup = entity.Cup ?? string.Empty,
+                Bust = entity.Bust ?? 0,
+                Waist = entity.Waist ?? 0,
+                Hips = entity.Hips ?? 0,
+                BloodType = entity.BloodType ?? string.Empty,
+
+                // Flatten the AltNames into a simple list of strings
+                AltNames = entity.AltNames != null
+                    ? entity.AltNames.Select(an => an.Name).ToList()
+                    : new List<string>(),
+
+                // Flatten the images into the string list the scraper uses
+                ImageFileNames = entity.Images != null
+                    ? entity.Images.OrderBy(i => i.Index).Select(i => i.Filepath).ToList()
+                    : new List<string>()
+            };
+
+            return scraperData;
         }
         public async Task SetDefaultActressImageAsync(string actressName, string filePath)
         {

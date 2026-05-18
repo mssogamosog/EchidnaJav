@@ -1,0 +1,256 @@
+﻿@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Infrastructure.Interfaces
+@using EchidnaJav.Core.Infrastructure.Persistence
+@using EchidnaJav.Core.Infrastructure.Services
+@inject IPlaybackService PlaybackService
+@inject IFileUtilityService FileUtil
+@inject IMovieRepositoryService Repo
+@inject INativeDialogService DialogService
+@inject IJSRuntime JS
+
+@if (IsVisible && SelectedMovies.Any())
+{
+    @* Hide the standard context menu UI if the URL Dialog is currently open *@
+    @if (!_showUrlDialog)
+    {
+        <div class="context-menu-backdrop"
+             @onclick="Close"
+             @oncontextmenu="Close"
+             @oncontextmenu:preventDefault="true"></div>
+
+        <div class="custom-context-menu"
+             style="top: min(calc(100vh - 260px), @($"{Y}px")); left: min(calc(100vw - 220px), @($"{X}px"));">
+
+            <ul class="menu-list">
+                <li class="menu-item" @onclick="PlayMovieAsync">
+                    <span class="menu-icon">▶</span> @(SelectedMovies.Count > 1 ? $"Play {SelectedMovies.Count} movies" : "Play movie")
+                </li>
+                <li class="menu-item" @onclick="OpenFolderAsync">
+                    <span class="menu-icon">📁</span> @(SelectedMovies.Count > 1 ? $"Open {SelectedMovies.Count} folders" : "Open folder")
+                </li>
+                <li class="menu-separator"></li>
+                <li class="menu-item" @onclick="MoveToFolderAsync">
+                    <span class="menu-icon">📂</span> @(SelectedMovies.Count > 1 ? $"Move {SelectedMovies.Count} movies..." : "Move to folder...")
+                </li>
+                <li class="menu-item" @onclick="RescanFilesAsync">
+                    <span class="menu-icon">🔄</span> Rescan files
+                </li>
+
+                @if (SelectedMovies.Count == 1)
+                {
+                    <li class="menu-separator"></li>
+                    <li class="menu-item" @onclick="ImportCoverAsync">
+                        <span class="menu-icon">🖼️</span> Import cover image
+                    </li>
+                    <li class="menu-item" @onclick="OpenManualScrapeDialog">
+                        <span class="menu-icon">🔗</span> Scrape from Link
+                    </li>
+                }
+
+                <li class="menu-separator"></li>
+                <li class="menu-item" @onclick="RegenerateMetadataAsync">
+                    <span class="menu-icon">📄</span> Regenerate metadata
+                </li>
+                <li class="menu-separator"></li>
+                <li class="menu-item" @onclick="DeleteMovieAsync" style="color: #ff4d4d;">
+                    <span class="menu-icon">🗑️</span> @(SelectedMovies.Count > 1 ? $"Delete {SelectedMovies.Count} movies" : "Delete movie")
+                </li>
+            </ul>
+        </div>
+    }
+
+    @* 🔥 The new dynamic dialog component! *@
+    <ManualScrapeDialog IsVisible="_showUrlDialog" 
+                        MovieId="@(SelectedMovies.FirstOrDefault()?.Id ?? "")"
+                        OnConfirm="HandleUrlScrape" 
+                        OnCancel="CancelUrlScrape" />
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public double X { get; set; }
+    [Parameter] public double Y { get; set; }
+    [Parameter] public List<MovieDto> SelectedMovies { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnMoviesUpdated { get; set; }
+
+    private bool _showUrlDialog = false;
+
+    private void OpenManualScrapeDialog()
+    {
+        if (SelectedMovies.Count == 1)
+        {
+            _showUrlDialog = true;
+            // NOTE: We do NOT call Close() here, otherwise IsVisible becomes false 
+            // and our dialog gets destroyed before it even opens!
+        }
+    }
+
+    // 🔥 Updated to accept the dynamic list of requests
+    private async Task HandleUrlScrape(List<ManualUrlScrapeRequest> requests)
+    {
+        _showUrlDialog = false;
+        var movie = SelectedMovies.First();
+
+        await Close(); // Now we can safely close the whole context menu 
+
+        // 🔥 Call the new multiple-URL method
+        bool success = await Repo.RegenerateMetadataFromUrlsAsync(movie.Id, requests);
+
+        if (success)
+        {
+            await OnMoviesUpdated.InvokeAsync();
+        }
+    }
+
+    private async Task CancelUrlScrape()
+    {
+        _showUrlDialog = false;
+        await Close(); // Close the menu entirely if they cancel
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    // --- Action Implementations ---
+
+    private async Task PlayMovieAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+
+        foreach (var movie in SelectedMovies)
+        {
+            try
+            {
+                var fullDetails = await Repo.GetMovieDetailsAsync(movie.Id);
+                if (fullDetails?.Files?.Any() == true)
+                {
+                    await PlaybackService.PlayAllAsync(fullDetails.Id, fullDetails.Files);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Context menu playback error for {movie.Id}: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task OpenFolderAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+
+        foreach (var movie in SelectedMovies)
+        {
+            await FileUtil.OpenDirectoryAndSelectVideoAsync(movie.Id);
+        }
+    }
+
+    private async Task MoveToFolderAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+
+        var title = SelectedMovies.Count == 1
+            ? $"Select destination for {SelectedMovies[0].Title}"
+            : $"Select destination for {SelectedMovies.Count} movies";
+
+        var chosenFolder = await DialogService.PickFolderAsync(title);
+
+        if (!string.IsNullOrWhiteSpace(chosenFolder))
+        {
+            bool anyUpdates = false;
+
+            foreach (var movie in SelectedMovies)
+            {
+                bool success = await Repo.MoveMovieToFolderAsync(movie.Id, chosenFolder);
+                if (success) anyUpdates = true;
+            }
+
+            if (anyUpdates)
+            {
+                await OnMoviesUpdated.InvokeAsync();
+            }
+        }
+    }
+
+    private async Task RescanFilesAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+
+        foreach (var movie in SelectedMovies)
+        {
+            await Repo.RescanMovieDirectoryAsync(movie.Id);
+        }
+
+        await OnMoviesUpdated.InvokeAsync();
+    }
+
+    private async Task ImportCoverAsync()
+    {
+        if (SelectedMovies.Count != 1) return;
+
+        var movie = SelectedMovies.First();
+        await Close();
+
+        await OnMoviesUpdated.InvokeAsync();
+    }
+
+    private async Task RegenerateMetadataAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+
+        bool anyUpdates = false;
+        foreach (var movie in SelectedMovies)
+        {
+            // Ensure this method in Repo returns a bool (or just run it and assume success if no exception)
+            await Repo.RegenerateMetadataAsync(movie.Id);
+            anyUpdates = true; 
+        }
+
+        if (anyUpdates)
+        {
+            await OnMoviesUpdated.InvokeAsync();
+        }
+    }
+    private async Task DeleteMovieAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+
+        // 1. Create a safe warning prompt
+        string prompt = SelectedMovies.Count == 1
+            ? $"Are you sure you want to remove '{SelectedMovies.First().Title}' from your database?\n\n(Physical video files will not be deleted)."
+            : $"Are you sure you want to remove {SelectedMovies.Count} movies from your database?";
+
+        // 2. Ask for confirmation before doing anything destructive
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", prompt);
+
+        // 3. Close the context menu regardless of their choice
+        await Close();
+
+        if (confirmed)
+        {
+            bool anyUpdates = false;
+
+            // 4. Loop through and delete the selected movies
+            foreach (var movie in SelectedMovies)
+            {
+                bool success = await Repo.DeleteMovieAsync(movie.Id);
+                if (success) anyUpdates = true;
+            }
+
+            // 5. Refresh the UI
+            if (anyUpdates)
+            {
+                // Clear the selection so the UI doesn't hold onto deleted references
+                SelectedMovies.Clear();
+                await OnMoviesUpdated.InvokeAsync();
+            }
+        }
+    }
+}

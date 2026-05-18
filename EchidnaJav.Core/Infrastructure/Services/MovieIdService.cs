@@ -28,7 +28,6 @@ namespace EchidnaJav.Core.Infrastructure.Services
             }
         }
 
-        // Compile Regexes ONCE (Static Readonly) for high performance.
         private static readonly List<IdRule> HighPriorityRules = new List<IdRule>
         {
             // FC2-PPV
@@ -46,30 +45,28 @@ namespace EchidnaJav.Core.Infrastructure.Services
         {
             // 13dsvr01744pl → DSVR-1744
             new IdRule(
-                new Regex(@"(?<![A-Za-z0-9])\d{1,4}([A-Z]{2,7})0*([0-9]{3,5})[A-Z]{0,3}(?![A-Za-z0-9])",
+                new Regex(@"(?<![A-Za-z0-9])\d{1,4}([A-Z]{2,10})0*([0-9]{3,5})[A-Z]{0,3}(?![A-Za-z0-9])",
                     RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => $"{m.Groups[1].Value.ToUpper()}-{int.Parse(m.Groups[2].Value)}"
             ),
             
             // DMM (ABC00123 -> ABC-123)
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})0{2}([0-9]{2,5})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,10})0{2}([0-9]{2,5})", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Numeric Prefix (804CMP-001 -> CMP-001)
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])[0-9]{1,4}([A-Z]{2,7})[-_ ]([0-9]{2,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])[0-9]{1,4}([A-Z]{2,10})[-_ ]([0-9]{2,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
             // Mixed Alphanumeric (ABC12-123A -> ABC12-123)
-            // Removed Group 3 capture logic to uniformly strip trailing disc letters
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7}[0-9]{0,2})[-_ ]([0-9]{2,5})[A-Za-z]?(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,10}[0-9]{0,2})[-_ ]([0-9]{2,5})[A-Za-z]?(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
-            // Basic / Compact (MDVR-129A -> MDVR-129)
-            // Removed Group 3 capture logic to uniformly strip trailing disc letters
-            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,7})(?:[-_ ]?)([0-9]{2,8})[A-Za-z]?(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            // Basic / Compact (MDVR-129A -> MDVR-129, MURIKURI-001-4k -> MURIKURI-001)
+            new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z]{2,12})(?:[-_ ]?)([0-9]{2,8})[A-Za-z]?(?=[^0-9A-Za-z]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value)),
         
-            // Single Letter (A-123)
+            // Single Letter (A-123) (Remains unchanged)
             new IdRule(new Regex(@"(?<![A-Za-z0-9])([A-Z])(?:[-_ ]?)([0-9]{3,5})(?![A-Za-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled),
                 m => string.Format("{0}-{1}", m.Groups[1].Value.ToUpper(), m.Groups[2].Value))
         };

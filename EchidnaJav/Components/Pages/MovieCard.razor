@@ -1,5 +1,4 @@
 ﻿@using EchidnaJav.Core.Domain.DTOs
-@using EchidnaJav.Core.Domain.Entities
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
@@ -8,8 +7,16 @@
 @implements IAsyncDisposable
 
 
-<a href="/movie/@Movie.Id" class="movie-card" @ref="_element" @onmouseenter='() => UI.SetFooterText(Movie.Title)'
-       @onmouseleave='() => UI.SetFooterText(null)'>
+<div class="movie-card @(IsSelected ? "selected" : "")" 
+     style="cursor: pointer;"
+     @ref="_element" 
+     @onmouseenter='() => UI.SetFooterText(Movie.Title)'
+     @onmouseleave='() => UI.SetFooterText(null)'
+     @onclick="OnClick" 
+     @onclick:stopPropagation="true"
+     @oncontextmenu="OnRightClick"
+     @oncontextmenu:preventDefault="true"
+     @oncontextmenu:stopPropagation="true">
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
         @if (_currentImage != null)
         {
@@ -26,22 +33,34 @@
             <div class="title id">[@Movie.Id] @Movie.Title</div>
         </div>
     </div>
-</a>
+</div>
 
 @code {
     [Parameter, EditorRequired] public MovieDto Movie { get; set; } = default!;
     [Parameter] public bool UseFullImage { get; set; }
+    [Parameter] public bool IsSelected { get; set; }
 
+    [Parameter] public EventCallback<MouseEventArgs> OnMovieClicked { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnMovieRightClicked { get; set; }
     private string? _currentImage;
     private ElementReference _element;
     private DotNetObjectReference<MovieCard>? _dotnetRef;
     private CancellationTokenSource? _cts;
     private string? _currentRequestKey;
     private bool _isVisible;
-
-    // DRY property for image type
     private ImageType TargetImageType => UseFullImage ? ImageType.Thumbnail : ImageType.Cover;
+    private async Task OnClick(MouseEventArgs e) => await OnMovieClicked.InvokeAsync(e);
+    private async Task OnRightClick(MouseEventArgs e) => await OnMovieRightClicked.InvokeAsync(e);
 
+    // This catches the event from the menu when data changes
+    private async Task HandleMovieUpdated()
+    {
+        // If the cover changed, you might need to force the ImageService to reload here
+        // _currentImage = null;
+        // await LoadImageAsync(_cts.Token, _currentRequestKey);
+
+        StateHasChanged();
+    }
     protected override void OnInitialized()
     {
         ImageService.OnImageGenerated += HandleImageGenerated;

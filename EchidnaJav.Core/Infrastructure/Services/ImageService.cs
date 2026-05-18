@@ -24,10 +24,11 @@ namespace EchidnaJav.Core.Infrastructure.Services
     {
         event Action<string>? OnImageGenerated;
         string GetCachePath(string originalPath, ImageType type);
-        Task GenerateImagesAsync(string originalPath);
+        Task GenerateImagesAsync(string originalPath, bool forceOverwrite = false);
         string? GetBestImage(Movie movie);
         Task<string?> GetImageAsync(string originalPath, ImageType type);
         Task<string?> DownloadImageAsync( string destinationPath, string imageUrl);
+        Task ImportCoverImageAsync(string movieId, string sourceFilePath);
     }
 
     public class ImageService : IImageService
@@ -65,7 +66,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         // 🔥 IMPORT PHASE
         // ==============================
 
-        public async Task GenerateImagesAsync(string originalPath)
+        public async Task GenerateImagesAsync(string originalPath, bool forceOverwrite = false)
         {
             if (!File.Exists(originalPath))
                 return;
@@ -76,8 +77,8 @@ namespace EchidnaJav.Core.Infrastructure.Services
             {
                 using var image = await Image.LoadAsync(originalPath);
 
-                await GenerateVariant(image, originalPath, ImageType.Thumbnail);
-                await GenerateVariant(image, originalPath, ImageType.Cover);
+                await GenerateVariant(image, originalPath, ImageType.Thumbnail, forceOverwrite);
+                await GenerateVariant(image, originalPath, ImageType.Cover, forceOverwrite);
             }
             finally
             {
@@ -85,11 +86,11 @@ namespace EchidnaJav.Core.Infrastructure.Services
             }
         }
 
-        private async Task GenerateVariant(Image original, string originalPath, ImageType type)
+        private async Task GenerateVariant(Image original, string originalPath, ImageType type, bool forceOverwrite = false)
         {
             var cachePath = GetCachePath(originalPath, type);
 
-            if (File.Exists(cachePath))
+            if (!forceOverwrite && File.Exists(cachePath))
                 return;
 
             using var image = original.Clone(ctx => { });
@@ -158,8 +159,25 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
         public string GetCachePath(string originalPath, ImageType type)
         {
+            if (string.IsNullOrWhiteSpace(originalPath)) return string.Empty;
+
+            string fileName = Path.GetFileName(originalPath);
+            string uniqueKey = fileName;
+
+            if (File.Exists(originalPath))
+            {
+                try
+                {
+                    long fileSize = new FileInfo(originalPath).Length;
+                    uniqueKey = $"{fileName}_{fileSize}";
+                }
+                catch
+                {
+                }
+            }
+
             using var sha1 = SHA1.Create();
-            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(originalPath + type));
+            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(uniqueKey + type));
             var name = Convert.ToHexString(hash);
 
             return Path.Combine(_cacheFolder, $"{name}.jpg");
@@ -305,6 +323,11 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
             // Format to match your legacy checksum format (AA-BB-CC...)
             return BitConverter.ToString(hashBytes);
+        }
+
+        public Task ImportCoverImageAsync(string movieId, string sourceFilePath)
+        {
+            throw new NotImplementedException();
         }
     }
 }

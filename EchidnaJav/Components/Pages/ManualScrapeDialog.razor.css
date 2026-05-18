@@ -1,0 +1,211 @@
+﻿/* =======================================================
+   MANUAL SCRAPE DIALOG (MODAL)
+======================================================= */
+
+/* The dark/blurred background behind the modal */
+.dialog-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--overlay);
+    backdrop-filter: blur(5px); /* Adds a modern frosted glass effect */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000; /* High enough to sit over everything */
+    padding: 20px;
+}
+
+/* The actual modal window */
+.dialog-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 600px; /* Limits how wide it gets on desktop */
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: dialogFadeIn 0.2s ease-out;
+}
+
+@keyframes dialogFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Dialog Typography */
+.dialog-box h3 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.dialog-box p {
+    margin: 0 0 8px 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.dialog-box strong {
+    color: var(--primary);
+}
+
+/* --- The List of Scrapers --- */
+.sources-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 8px; /* Room for the scrollbar */
+}
+
+/* Custom Scrollbar for the list */
+.sources-list::-webkit-scrollbar {
+    width: 6px;
+}
+.sources-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sources-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+}
+
+.source-row {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+}
+
+.source-row:hover {
+    border-color: var(--primary);
+}
+
+.priority-badge {
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    min-width: 45px;
+    text-align: center;
+}
+
+/* Form Inputs inside the Dialog */
+.source-row select,
+.source-row input {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.source-row select:focus,
+.source-row input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--focus);
+}
+
+/* --- Buttons --- */
+.dialog-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.dialog-actions div {
+    display: flex;
+    gap: 12px;
+}
+
+/* "+ Add Another Source" Button */
+.btn-add {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px dashed var(--border);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-add:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--focus);
+}
+
+.btn-add:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* "❌" Remove Row Button */
+.btn-remove {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 6px;
+    border-radius: 6px;
+    opacity: 0.6;
+    transition: all 0.2s;
+}
+
+.btn-remove:hover {
+    opacity: 1;
+    background: rgba(230, 57, 70, 0.15); /* Faint red background on hover */
+}
+
+/* Cancel Button */
+.btn-cancel {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background: var(--border);
+}
+
+/* Confirm / Submit Button */
+.btn-confirm {
+    background: var(--primary);
+    color: var(--bg); /* Keep text readable based on your theme */
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-confirm:hover:not(:disabled) {
+    background: var(--primary-hover);
+}
+
+.btn-confirm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

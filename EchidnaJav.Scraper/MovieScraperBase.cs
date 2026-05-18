@@ -16,5 +16,18 @@ namespace EchidnaJav.Scraper
         {
         }
         public abstract Task ScrapeAsync(string movieID, LanguageType language);
+        public virtual Task ScrapeFromUrlAsync(string url, LanguageType language)
+        {
+            m_parsingSuccessful = false;
+            SearchNotFound = false;
+            ImageSource = string.Empty;
+            Metadata = new MovieMetadata("");
+            m_language = language;
+            if (!IsLanguageSupported())
+            {
+                return Task.CompletedTask;
+            }
+            return ScrapeWebsiteAsync(url);
+        }
     }
 }

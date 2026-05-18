@@ -42,10 +42,26 @@ namespace EchidnaJav.Scraper
             _appPaths = appPaths;
             _cacheFolder = Path.Combine(_appPaths.AppDataDirectory, "actress-cache");
         }
-        // 1. The main entry point is now Async
         public async Task<ActressData> ScrapeActressAsync(ActressData actressData, LanguageType language)
         {
-            
+            var existingDbData = await _actressRepoService.GetActressDataForScraperAsync(actressData.Name);
+
+            if (existingDbData != null)
+            {
+                if (existingDbData.ImageFileNames != null && existingDbData.ImageFileNames.Count > 0)
+                {
+                    return existingDbData;
+                }
+
+                MergeActressData(actressData, existingDbData);
+                _logger.LogInformation("🔄 Attempting to scrape missing cover image for existing actress: {Name}", actressData.Name);
+            }
+            else
+            {
+                _logger.LogInformation("✨ Scraping brand new actress: {Name}", actressData.Name);
+            }
+
+          
             foreach (var scraper in _scrapers)
             {
                 await ScrapeActressModuleAsync(scraper, actressData, language);
@@ -62,6 +78,7 @@ namespace EchidnaJav.Scraper
             else
                 _logger.LogInformation("Found information for " + actressData.Name);
 
+            // 7. Save to DB (Your Repo handles the Upsert)
             await _actressRepoService.SaveScrapedActressAsync(actressData);
 
             return actressData;

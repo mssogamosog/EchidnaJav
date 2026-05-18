@@ -67,7 +67,80 @@ namespace EchidnaJav.Scraper
             _logger.LogInformation($"Metadata for {resultMetadata.UniqueID.Value} successfully finalized.");
             return resultMetadata;
         }
+        public async Task<MovieMetadata> ScrapeMovieFromMultipleUrlsAsync(string movieId, List<ManualUrlScrapeRequest> requests, string targetCoverPath, LanguageType english)
+        {
+            _logger.LogInformation("Launching dynamic multi-URL execution pipeline for {MovieId} with {Count} sources", movieId, requests.Count);
 
+            if (requests == null || !requests.Any()) return null;
+
+            // 1. Prepare all scrapers and their tasks
+            var scrapeTasks = requests.Select(req =>
+            {
+                var scraper = GetScraperInstance(req.Source);
+                return new
+                {
+                    Scraper = scraper,
+                    Task = scraper.ScrapeFromUrlAsync(req.Url, english)
+                };
+            }).ToList();
+
+            // 2. Execute ALL of them concurrently
+            await Task.WhenAll(scrapeTasks.Select(x => x.Task));
+
+            MovieMetadata? mergedMetadata = null;
+            string? bestImageSource = null;
+
+            // 3. Merge results in sequential priority order (Index 0 is highest priority)
+            foreach (var result in scrapeTasks)
+            {
+                var scraper = result.Scraper;
+                if (scraper.Metadata != null && !scraper.SearchNotFound)
+                {
+                    if (mergedMetadata == null)
+                    {
+                        mergedMetadata = scraper.Metadata;
+                        mergedMetadata.UniqueID.Value = movieId; 
+                    }
+                    else
+                    {
+                        mergedMetadata = MetadataMerger.MergePrimary(mergedMetadata, scraper.Metadata);
+                    }
+
+                    if (string.IsNullOrEmpty(bestImageSource) && !string.IsNullOrEmpty(scraper.ImageSource))
+                    {
+                        bestImageSource = scraper.ImageSource;
+                    }
+                }
+            }
+
+            if (mergedMetadata == null)
+            {
+                _logger.LogWarning("Multi-URL scrape failed to extract valid data from any provided source.");
+                return null;
+            }
+            mergedMetadata.UniqueID?.Value = movieId;
+            if (!string.IsNullOrEmpty(targetCoverPath) && !string.IsNullOrEmpty(bestImageSource))
+            {
+                await DownloadCoverAsync(targetCoverPath, bestImageSource);
+            }
+
+            foreach (var actor in mergedMetadata.Actors)
+            {
+                ScraperParsingExtensions.FilterActorName(actor);
+            }
+
+            return mergedMetadata;
+        }
+        private IMovieScraper GetScraperInstance(ScraperSourceType source) => source switch
+        {
+            ScraperSourceType.JavLibrary => GetScraper<MovieJavLibrary>(),
+            ScraperSourceType.JavDatabase => GetScraper<MovieJavDatabase>(),
+            ScraperSourceType.R18Dev => GetScraper<MovieR18Dev>(),
+            ScraperSourceType.SupJav => GetScraper<MovieSupJav>(),
+            ScraperSourceType.MissAv => GetScraper<MovieMissAv>(),
+            ScraperSourceType.JavTiful => GetScraper<MovieJavTiful>(),
+            _ => throw new ArgumentException("Unsupported scraper engine subtype.")
+        };
         private async Task<MovieMetadata> ScrapeStandardPipelineAsync(string movieID, string coverPath, LanguageType language, bool downloadCover)
         {
             MovieMetadata mergedMetadata = new MovieMetadata(movieID);

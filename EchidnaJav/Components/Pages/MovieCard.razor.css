@@ -16,7 +16,11 @@
     box-shadow: var(--shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
+.movie-card.selected {
+    outline: 3px solid var(--primary); 
+    transform: scale(0.98);
+    opacity: 0.85;
+}
 .cover-container {
     width: 100%;
     aspect-ratio: 2 / 3;

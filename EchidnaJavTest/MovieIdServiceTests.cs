@@ -23,6 +23,8 @@ namespace EchidnaJav.Test
         [InlineData("abc-12", "ABC-12")]
         [InlineData("abc 123", "ABC-123")]
         [InlineData("mdvr-129A.VR", "MDVR-129")]
+        [InlineData("murikuri-001-4k", "MURIKURI-001")]
+        
         public void Parse_Basic(string input, string expected)
         {
             var result = _service.ParseMovieID(input);

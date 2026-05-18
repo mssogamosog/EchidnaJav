@@ -98,6 +98,32 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                         // Generate the decoupled .nfo XML directly alongside the media file
                         await nfoGenerator.GenerateNfoAsync(savedEntity.Id, request.TargetDirectory);
+                        string nfoFilePath = Path.Combine(request.TargetDirectory, $"{savedEntity.Id}.nfo");
+
+                        if (File.Exists(nfoFilePath))
+                        {
+                            // Ensure we don't accidentally add duplicates
+                            bool nfoExistsInDb = await db.Files.AnyAsync(f =>
+                                f.MovieId == savedEntity.Id && f.FilePath == nfoFilePath, stoppingToken);
+
+                            if (!nfoExistsInDb)
+                            {
+                                var nfoInfo = new FileInfo(nfoFilePath);
+
+                                db.Files.Add(new FileEntry
+                                {
+                                    MovieId = savedEntity.Id,
+                                    FileName = nfoInfo.Name,
+                                    FilePath = nfoInfo.FullName,
+                                    SizeBytes = nfoInfo.Length,
+                                    LastModified = nfoInfo.LastWriteTimeUtc,
+                                    IsScanned = true,
+                                    Hash = string.Empty
+                                });
+
+                                await db.SaveChangesAsync(stoppingToken);
+                            }
+                        }
 
                         _logger.LogInformation($"✅ Finished online import & generated NFO safely for: {request.MovieId}");
                     }

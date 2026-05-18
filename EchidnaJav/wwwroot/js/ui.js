@@ -115,3 +115,27 @@ window.getScrollInfo = (id) => {
         clientWidth: e.clientWidth
     };
 };
+window.clickOutsideHandler = {
+    addEvent: function (container, dotNetHelper) {
+        // Define the listener
+        const listener = function (e) {
+            // If the click happened OUTSIDE the container, tell C#
+            if (container && !container.contains(e.target)) {
+                dotNetHelper.invokeMethodAsync('OnClickedOutside');
+            }
+        };
+
+        // Attach the listener to the document
+        document.addEventListener('click', listener);
+
+        // Store the listener on the HTML element so we can remove it later
+        container._clickOutsideListener = listener;
+    },
+    removeEvent: function (container) {
+        // Clean up the memory when the page is destroyed
+        if (container && container._clickOutsideListener) {
+            document.removeEventListener('click', container._clickOutsideListener);
+            delete container._clickOutsideListener;
+        }
+    }
+};

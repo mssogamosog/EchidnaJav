@@ -3,52 +3,76 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="EchidnaJav.Scraper.Views.CloudflareSolverPage" 
              Title="Security Check"
-             BackgroundColor="{AppThemeBinding Light={StaticResource LightPageBackground}, Dark={StaticResource DarkPageBackground}}">
+             BackgroundColor="{AppThemeBinding Light=#CCF4F8FB, Dark=#CC0F161A}">
+    <!-- CC is 80% opacity for the glass backdrop -->
 
-    <Grid RowDefinitions="Auto, *">
+    <!-- Modal Container -->
+    <Border HorizontalOptions="Center"
+            VerticalOptions="Center"
+            WidthRequest="450"
+            HeightRequest="550"
+            Stroke="{AppThemeBinding Light=#D0DDE5, Dark=#2E424D}"
+            StrokeThickness="1"
+            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1A262D}"
+            StrokeShape="RoundRectangle 14"
+            Padding="0">
 
-        <Grid Grid.Row="0" 
-              ColumnDefinitions="*, Auto" 
-              Padding="14,10" 
-              BackgroundColor="{AppThemeBinding Light={StaticResource LightSurface}, Dark={StaticResource DarkSurface}}">
+        <!-- Deep shadow to mimic the CSS box-shadow -->
+        <Border.Shadow>
+            <Shadow Brush="Black" Offset="0,10" Radius="30" Opacity="0.25" />
+        </Border.Shadow>
 
-            <Label Grid.Column="0" 
-                   Text="Verification Required" 
-                   TextColor="{AppThemeBinding Light={StaticResource LightText}, Dark={StaticResource DarkText}}"
-                   VerticalOptions="Center" 
-                   FontSize="16"
-                   FontAttributes="Bold" />
+        <Grid RowDefinitions="Auto, Auto, *, Auto">
 
-            <Button Grid.Column="1" 
-                    Text="Cancel" 
-                    Clicked="OnCancelClicked" 
-                    Padding="14,6"
-                    CornerRadius="8"
-                    FontSize="13"
-                    BackgroundColor="{StaticResource DangerColor}"
-                    TextColor="#FFFFFF" />
+            <!-- Header (Surface-2 Color) -->
+            <Grid Grid.Row="0" Padding="20,16" BackgroundColor="{AppThemeBinding Light=#E8F0F5, Dark=#21313A}">
+                <Label Text="Security Check Required" 
+                       FontSize="18" 
+                       FontAttributes="Bold" 
+                       TextColor="{AppThemeBinding Light=#111A1F, Dark=#F0F5F9}" />
+            </Grid>
+
+            <!-- Instructions -->
+            <Label Grid.Row="1" 
+                   Padding="20,16,20,0"
+                   Text="Please complete the captcha below. If the page redirects but gets stuck spinning, click Continue to resume scraping."
+                   FontSize="13"
+                   TextColor="{AppThemeBinding Light=#516675, Dark=#8B9EAC}" />
+
+            <!-- WebView -->
+            <WebView Grid.Row="2" 
+                     x:Name="ChallengeWebView" 
+                     Margin="20,10"
+                     Navigated="OnWebViewNavigated" />
+
+            <!-- Actions (Footer) -->
+            <Grid Grid.Row="3" 
+                  ColumnDefinitions="*,*" 
+                  ColumnSpacing="12" 
+                  Padding="20,16"
+                  BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1A262D}">
+
+                <!-- Cancel (Uses Surface-2 styling so it's less prominent) -->
+                <Button Grid.Column="0" 
+                        Text="Cancel" 
+                        Clicked="OnCancelClicked" 
+                        CornerRadius="8"
+                        FontAttributes="Bold"
+                        Padding="0,12"
+                        BackgroundColor="{AppThemeBinding Light=#E8F0F5, Dark=#21313A}"
+                        TextColor="{AppThemeBinding Light=#111A1F, Dark=#F0F5F9}" />
+
+                <!-- Continue (Uses Primary Theme Colors) -->
+                <Button Grid.Column="1" 
+                        Text="Continue Scraping" 
+                        Clicked="OnContinueClicked" 
+                        CornerRadius="8"
+                        FontAttributes="Bold"
+                        Padding="0,12"
+                        BackgroundColor="{AppThemeBinding Light=#8CA600, Dark=#D4FF33}"
+                        TextColor="{AppThemeBinding Light=#FFFFFF, Dark=#0F161A}" />
+            </Grid>
         </Grid>
+    </Border>
 
-        <WebView Grid.Row="1" 
-                 x:Name="ChallengeWebView" 
-                 Navigated="OnWebViewNavigated" />
-
-        <Border Grid.Row="1"
-                BackgroundColor="{AppThemeBinding Light={StaticResource LightSurface}, Dark={StaticResource DarkSurface}}" 
-                Stroke="{AppThemeBinding Light={StaticResource LightBorder}, Dark={StaticResource DarkBorder}}"
-                StrokeThickness="1"
-                VerticalOptions="Start" 
-                Margin="16" 
-                Padding="16,12"
-                StrokeShape="RoundRectangle 12"
-                Shadow="{Shadow Brush={AppThemeBinding Light={StaticResource LightText}, Dark=#000000}, Offset='0,4', Radius=12, Opacity=0.08}">
-
-            <Label Text="Please complete the security check below to unblock the session pipeline."
-                   TextColor="{AppThemeBinding Light={StaticResource LightTextMuted}, Dark={StaticResource DarkTextMuted}}"
-                   HorizontalOptions="Center" 
-                   HorizontalTextAlignment="Center"
-                   FontSize="13" />
-        </Border>
-
-    </Grid>
 </ContentPage>
