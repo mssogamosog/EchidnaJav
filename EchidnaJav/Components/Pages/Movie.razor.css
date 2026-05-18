@@ -2,16 +2,21 @@
 .movie-page-container {
     display: grid;
     grid-template-columns: minmax(0, 900px) 320px;
-    grid-template-areas: "title title" "media sidebar" "details sidebar";
+    grid-template-areas: 
+        "title title" 
+        "media recommended" 
+        "details files"; 
     gap: 24px;
     justify-content: center;
     align-items: start;
     padding: 20px;
 }
+
 .title-area { grid-area: title; }
 .media-header-area { grid-area: media; }
 .details-area { grid-area: details; min-width: 0; }
-.sidebar { grid-area: sidebar; }
+.recommended-area { grid-area: recommended; }
+.files-area { grid-area: files; align-self: start; }
 
 /* ================= HEADER / MEDIA ================= */
 .media-header-area {
@@ -115,15 +120,38 @@
     width: 100%;
     display: grid;
     align-items: start;
-    gap: 16px 32px;
-    grid-template-columns: 240px minmax(0, 1fr) 320px;
-    grid-template-rows: min-content min-content;
+    gap: 24px 32px;
+    /* Reduced from 3 columns down to 2! */
+    grid-template-columns: 240px minmax(0, 1fr);
 }
-.poster-container { grid-column: 1; grid-row: 1 / span 2; }
-.info-main { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 20px; }
-.cast-section { grid-column: 2; grid-row: 2; min-width: 0; }
-.tags-container { grid-column: 3; grid-row: 1; display: flex; flex-wrap: wrap; gap: 8px; align-content: start; }
 
+.poster-container {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+}
+
+.info-main {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.tags-container {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-content: start;
+}
+
+.cast-section {
+    grid-column: 2;
+    grid-row: 3;
+    min-width: 0;
+}
 /* ================= INFO GRID ================= */
 .info-grid {
     display: grid;
@@ -151,16 +179,14 @@
 }
 
 /* ================= FILES ================= */
-.files-container {
-    grid-column: 3;
-    grid-row: 2;
+.files-area {
     background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(10px);
     padding: 20px;
     border-radius: 12px;
     border: 1px solid var(--border);
 }
-.files-container h5 {
+.files-area h5 {
     color: var(--text-muted);
     text-transform: uppercase;
     font-size: 0.8rem;
@@ -365,7 +391,12 @@
 @media (max-width: 1024px) {
     .movie-page-container {
         grid-template-columns: 1fr;
-        grid-template-areas: "title" "media" "details" "sidebar";
+        grid-template-areas:
+            "title"
+            "media"
+            "details"
+            "files"
+            "recommended";
     }
     
     .poster-img { display: none; }

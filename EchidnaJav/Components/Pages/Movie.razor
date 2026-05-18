@@ -11,11 +11,10 @@
 @inject IPlaybackService PlaybackService
 @inject UIState UI
 
-<div class="movie-page-container" @oncontextmenu="ShowContextMenu"
+<div class="movie-page-container" 
+     @oncontextmenu="ShowContextMenu"
      @oncontextmenu:preventDefault="true">
-    
 
-    <!-- TITLE -->
     <div class="title-area">
         <h4 class="movie-id">@movie?.Id</h4>
         @if (isEditing)
@@ -28,14 +27,12 @@
         }
     </div>
 
-    <!-- FULL IMAGE -->
     <div class="media-header-area" id="cover-drop-zone" style="position: relative;">
 
         <img src="@(!string.IsNullOrEmpty(_previewImageUrl) ? _previewImageUrl : fullImage)" class="full-cover-img" />
 
         @if (isEditing)
         {
-            <!-- 🔥 FIX 1: Clicking this div triggers native C# FilePicker -->
             <div class="image-drop-overlay" @onclick="PickImageNative" style="cursor: pointer;">
                 <span style="font-weight: bold; text-align: center; padding: 10px;">Drop new cover here (or click)</span>
             </div>
@@ -48,28 +45,36 @@
         }
     </div>
 
-    <!-- SIDEBAR -->
-    <div class="sidebar">
+    <div class="recommended-area">
         <h3>Recommended</h3>
         <p>(Coming later)</p>
     </div>
 
-    <!-- DETAILS WRAPPER -->
+    <div class="files-area">
+        <h5>Available Files</h5>
+        @foreach (var file in movie?.Files ?? Enumerable.Empty<FileDto>())
+        {
+            <div class="file-item">
+                <span class="file-name" title="@file.FileName">🎬 @file.FileName</span>
+                <button class="file-play-btn" @onclick="() => PlaybackService.PlayFile(file.FilePath)">
+                    ▶ Play
+                </button>
+            </div>
+        }
+    </div>
+
     <div class="details-area">
         <div class="details-grid">
 
-            <!-- POSTER (With Drag & Drop support) -->
             <div class="poster-container">
                 <img src="@posterImage" class="poster-img" />
             </div>
 
-            <!-- INFO -->
             <div class="info-main">
-                <!-- Flex header for ID and Minimalist Edit Buttons -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; position: relative;">
                     <div class="movie-id">@movie?.Id</div>
 
-                    <div class="edit-controls" style="display: flex; gap: 8px;">
+                    <div class="edit-controls" style="display: flex; gap: 8px; position: relative;">
                         @if (isEditing)
                         {
                             <button class="btn-minimal" @onclick="ToggleEditModeAsync">Cancel</button>
@@ -79,61 +84,34 @@
                         {
                             <button class="btn-minimal" @onclick="ToggleEditModeAsync">Edit</button>
                         }
+
+                        
                     </div>
                 </div>
 
                 <div class="info-grid">
                     <div>Released:</div>
                     <div>
-                        @if (isEditing)
-                        {
-                            <input type="date" @bind="movie!.Premiered" class="form-control" />
-                        }
-                        else
-                        {
-
-                            @(movie?.Premiered?.ToString("yyyy-MM-dd") ?? "Unknown")
-                        }
+                        @if (isEditing) { <input type="date" @bind="movie!.Premiered" class="form-control" /> }
+                        else { @(movie?.Premiered?.ToString("yyyy-MM-dd") ?? "Unknown") }
                     </div>
 
                     <div>Runtime:</div>
                     <div>
-                        @if (isEditing)
-                        {
-                            <input type="number" @bind="movie!.Runtime" class="form-control" style="width: 80px;" />
-                        }
-                        else
-                        {
-
-                            @(movie?.Runtime ?? 0)
-                        }
-                        min
+                        @if (isEditing) { <input type="number" @bind="movie!.Runtime" class="form-control" style="width: 80px;" /> }
+                        else { @(movie?.Runtime ?? 0) } min
                     </div>
 
                     <div>Studio:</div>
                     <div>
-                        @if (isEditing)
-                        {
-                            <input @bind="movie!.Studio" class="form-control" />
-                        }
-                        else
-                        {
-
-                            @movie?.Studio
-                        }
+                        @if (isEditing) { <input @bind="movie!.Studio" class="form-control" /> }
+                        else { @movie?.Studio }
                     </div>
 
                     <div>Director:</div>
                     <div>
-                        @if (isEditing)
-                        {
-                            <input @bind="movie!.Director" class="form-control" />
-                        }
-                        else
-                        {
-
-                            @movie?.Director
-                        }
+                        @if (isEditing) { <input @bind="movie!.Director" class="form-control" /> }
+                        else { @movie?.Director }
                     </div>
                 </div>
 
@@ -152,7 +130,43 @@
                 }
             </div>
 
-            <!-- CAST (Edit Mode Tag Editor + Display Grid) -->
+            <div class="tags-container">
+                @if (isEditing)
+                {
+                    <div class="tag-editor">
+                        @foreach (var g in movie!.Genres.ToList())
+                        {
+                            <span class="genre-tag">
+                                @g
+                                <button type="button" @onclick="() => movie.Genres.Remove(g)">&times;</button>
+                            </span>
+                        }
+                        <input type="text"
+                               placeholder="Add genre..."
+                               @bind="newGenreInput"
+                               @bind:event="oninput"
+                               @onkeyup="HandleGenreKeyPress"
+                               list="genre-suggestions"
+                               class="form-control"
+                               style="width: 120px; padding: 4px 8px; font-size: 0.9rem;" />
+
+                        <datalist id="genre-suggestions">
+                            @foreach (var suggestion in dbGenreSuggestions)
+                            {
+                                <option value="@suggestion" />
+                            }
+                        </datalist>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var g in movie?.Genres ?? Enumerable.Empty<string>())
+                    {
+                        <span class="genre-tag">@g</span>
+                    }
+                }
+            </div>
+
             <div class="cast-section">
                 <h4>Cast</h4>
                 @if (isEditing)
@@ -222,61 +236,10 @@
                 }
             </div>
 
-            <!-- TAGS (Edit Mode Tag Editor + Display) -->
-            <div class="tags-container">
-                @if (isEditing)
-                {
-                    <div class="tag-editor">
-                        @foreach (var g in movie!.Genres.ToList())
-                        {
-                            <span class="genre-tag">
-                                @g
-                                <button type="button" @onclick="() => movie.Genres.Remove(g)">&times;</button>
-                            </span>
-                        }
-                        <input type="text"
-                               placeholder="Add genre..."
-                               @bind="newGenreInput"
-                               @bind:event="oninput"
-                               @onkeyup="HandleGenreKeyPress"
-                               list="genre-suggestions"
-                               class="form-control"
-                               style="width: 120px; padding: 4px 8px; font-size: 0.9rem;" />
-
-                        <datalist id="genre-suggestions">
-                            @foreach (var suggestion in dbGenreSuggestions)
-                            {
-                                <option value="@suggestion" />
-                            }
-                        </datalist>
-                    </div>
-                }
-                else
-                {
-                    @foreach (var g in movie?.Genres ?? Enumerable.Empty<string>())
-                    {
-                        <span class="genre-tag">@g</span>
-                    }
-                }
-            </div>
-
-            <!-- FILES -->
-            <div class="files-container">
-                <h5>Available Files</h5>
-                @foreach (var file in movie?.Files ?? Enumerable.Empty<FileDto>())
-                {
-                    <div class="file-item">
-                        <span class="file-name" title="@file.FileName">🎬 @file.FileName</span>
-                        <button class="file-play-btn" @onclick="() => PlaybackService.PlayFile(file.FilePath)">
-                            ▶ Play
-                        </button>
-                    </div>
-                }
-            </div>
-
         </div>
     </div>
 </div>
+
 @if (movie != null)
 {
     <MovieContextMenu IsVisible="showContextMenu"
