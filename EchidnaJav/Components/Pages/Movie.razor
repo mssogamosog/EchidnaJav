@@ -509,7 +509,10 @@
         };
         _debounceTimer.Start();
     }
-
+    protected override void OnInitialized()
+    {
+        NativeFileDragDropHelper.OnFileDropped += HandleNativeFileDrop;
+    }
     private async Task HandleActressKeyPress(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newActressInput))
@@ -561,9 +564,32 @@
             newGenreInput = "";
         }
     }
+    private async void HandleNativeFileDrop(string physicalFilePath)
+    {
+        // Only process the drop if we are actively editing
+        if (!isEditing || string.IsNullOrWhiteSpace(physicalFilePath)) return;
 
+        try
+        {
+            // We have the raw physical path from Windows! Just read the bytes directly.
+            _pendingImageBytes = await System.IO.File.ReadAllBytesAsync(physicalFilePath);
+            _pendingImageExtension = System.IO.Path.GetExtension(physicalFilePath);
+
+            var base64 = Convert.ToBase64String(_pendingImageBytes);
+            string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+            _previewImageUrl = $"data:{mimeType};base64,{base64}";
+
+            // Because this was triggered by an external Windows thread, we MUST force Blazor to update the UI
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to read dropped file: {ex.Message}");
+        }
+    }
     public void Dispose()
     {
+        NativeFileDragDropHelper.OnFileDropped -= HandleNativeFileDrop;
         _objRef?.Dispose();
     }
 }
