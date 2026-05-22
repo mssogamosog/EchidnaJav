@@ -1,0 +1,73 @@
+﻿.actress-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    text-align: center;
+    cursor: pointer;
+    overflow: hidden; /* Ensures the image doesn't break out of the rounded corners */
+    transition: transform 0.25s ease, background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.actress-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+    border-color: var(--primary);
+}
+
+.portrait-container {
+    width: 100%;
+    aspect-ratio: 2 / 3; /* Standard poster/portrait ratio */
+    background-color: var(--surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.portrait {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Crops the image proportionally to fill the container */
+}
+
+.portrait-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.placeholder-icon {
+    font-size: 4rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+.info {
+    padding: 1rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.actress-name {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.actress-jp-name {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin: 0;
+}

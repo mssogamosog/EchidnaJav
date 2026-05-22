@@ -1,0 +1,79 @@
+﻿@page "/actresses"
+@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Persistence
+@inject IActressRepositoryService Repo
+@inject NavigationManager Nav
+@inject SearchState UI
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="actresses-page-container">
+    <h2 class="page-title">Actresses</h2>
+
+    @if (actressList == null)
+    {
+        <div class="loading-spinner">Loading Actresses...</div>
+    }
+    else if (!actressList.Any())
+    {
+        <div class="empty-state">No actresses found in the database.</div>
+    }
+    else
+    {
+        <div class="actresses-grid">
+            @foreach (var actress in actressList)
+            {
+                <ActressCard Actress="@actress" OnActressClicked="() => GoToActress(actress.Name)" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ActressDetailsDto>? actressList;
+    private IDisposable? _locationRegistration;
+
+    protected override async Task OnInitializedAsync()
+    {
+        //UI.SetFooterText("Actresses");
+        actressList = await Repo.GetAllActressesAsync();
+
+        _locationRegistration = Nav.RegisterLocationChangingHandler(OnLocationChanging);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (UI.ActressesScrollPosition > 0)
+            {
+                await Task.Yield();
+                await JS.InvokeVoidAsync("setScrollPos", UI.ActressesScrollPosition);
+            }
+        }
+    }
+
+    private async ValueTask OnLocationChanging(LocationChangingContext context)
+    {
+        try
+        {
+            // Save the current scroll position right before the page changes
+            double scroll = await JS.InvokeAsync<double>("getScrollPos");
+            UI.ActressesScrollPosition = scroll;
+        }
+        catch
+        {
+        }
+    }
+
+    private void GoToActress(string name)
+    {
+        Nav.NavigateTo($"/actress/{Uri.EscapeDataString(name)}");
+    }
+
+    public void Dispose()
+    {
+        _locationRegistration?.Dispose();
+    }
+}

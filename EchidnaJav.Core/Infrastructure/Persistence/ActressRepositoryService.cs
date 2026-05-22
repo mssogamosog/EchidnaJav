@@ -13,6 +13,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task SetDefaultActressImageAsync(string actressName, string filePath);
         Task<ActressData?> GetActressDataForScraperAsync(string name);
         Task<List<string>> SearchActressNamesAsync(string query);
+        Task<List<ActressDetailsDto>> GetAllActressesAsync();
     }
 
     public class ActressRepositoryService : IActressRepositoryService
@@ -260,6 +261,32 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 .ToListAsync();
 
             return suggestions;
+        }
+        public async Task<List<ActressDetailsDto>> GetAllActressesAsync()
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            var entities = await db.Actresses
+                .AsNoTracking()
+                .Include(a => a.Images) 
+                .Where(a => a.Name != null)
+                .OrderBy(a => a.Name)
+                .ToListAsync();
+
+            return entities.Select(entity => new ActressDetailsDto
+            {
+                Name = entity.Name ?? "Unknown",
+                JapaneseName = entity.JapaneseName,
+                Images = entity.Images != null
+                    ? entity.Images
+                        .OrderBy(i => i.Index)
+                        .Select(i => new ActressImageDto
+                        {
+                            Filepath = i.Filepath,
+                            Index = i.Index
+                        }).Take(1).ToList() 
+                    : new List<ActressImageDto>()
+            }).ToList();
         }
     }
 }

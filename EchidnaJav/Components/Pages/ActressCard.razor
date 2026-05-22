@@ -1,0 +1,179 @@
+﻿@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Services
+@inject IJSRuntime JS
+@inject IImageService ImageService
+@inject UIState UI
+@implements IAsyncDisposable
+
+<div class="actress-card"
+     style="cursor: pointer;"
+     @ref="_element"
+     @onmouseenter='() => UI.SetFooterText(Actress.Name)'
+     @onmouseleave='() => UI.SetFooterText(null)'
+     @onclick="OnClick"
+     @onclick:stopPropagation="true">
+
+    <div class="portrait-container">
+        @if (_currentImage != null)
+        {
+            <img src="@_currentImage" class="portrait" alt="@Actress.Name portrait" />
+        }
+        else
+        {
+            <div class="portrait-placeholder">
+                <span class="bi bi-person-fill placeholder-icon"></span>
+            </div>
+        }
+    </div>
+
+    <div class="info">
+        <div class="actress-name">@Actress.Name</div>
+        @if (!string.IsNullOrEmpty(Actress.JapaneseName))
+        {
+            <div class="actress-jp-name">@Actress.JapaneseName</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ActressDetailsDto Actress { get; set; } = default!;
+    [Parameter] public EventCallback<MouseEventArgs> OnActressClicked { get; set; }
+
+    private string? _currentImage;
+    private ElementReference _element;
+    private DotNetObjectReference<ActressCard>? _dotnetRef;
+    private CancellationTokenSource? _cts;
+    private string? _currentRequestKey;
+    private bool _isVisible;
+
+    // Depending on your image service generation, you can change this to ImageType.Full if needed
+    private ImageType TargetImageType => ImageType.Full;
+
+    private async Task OnClick(MouseEventArgs e) => await OnActressClicked.InvokeAsync(e);
+
+    protected override void OnInitialized()
+    {
+        ImageService.OnImageGenerated += HandleImageGenerated;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("imageObserver.observe", _element, _dotnetRef);
+            }
+            catch { /* ignore */ }
+        }
+    }
+
+    private string? GetPrimaryImagePath()
+    {
+        return Actress.Images?.FirstOrDefault()?.Filepath;
+    }
+
+    protected override void OnParametersSet()
+    {
+        var imagePath = GetPrimaryImagePath();
+        var requestKey = $"{Actress.Name}_{imagePath}";
+
+        if (_currentRequestKey == requestKey) return;
+
+        _currentRequestKey = requestKey;
+        _currentImage = null;
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        if (_isVisible)
+        {
+            _ = LoadImageAsync(_cts.Token, requestKey);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnVisible()
+    {
+        if (_isVisible) return;
+        _isVisible = true;
+
+        if (_currentImage == null)
+        {
+            _cts ??= new CancellationTokenSource();
+            await LoadImageAsync(_cts.Token, _currentRequestKey!);
+        }
+    }
+
+    [JSInvokable]
+    public void OnHidden()
+    {
+        _isVisible = false;
+        _cts?.Cancel();
+    }
+
+    private async Task LoadImageAsync(CancellationToken token, string requestKey)
+    {
+        var imagePath = GetPrimaryImagePath();
+        try
+        {
+            if (string.IsNullOrEmpty(imagePath) || token.IsCancellationRequested) return;
+
+            var img = await ImageService.GetImageAsync(imagePath, TargetImageType);
+
+            if (token.IsCancellationRequested || _currentRequestKey != requestKey) return;
+
+            if (!string.IsNullOrEmpty(img))
+            {
+                _currentImage = img;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (TaskCanceledException) { /* ignore */ }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Image load error: {ex}");
+        }
+    }
+
+    private void HandleImageGenerated(string path)
+    {
+        var imagePath = GetPrimaryImagePath();
+        if (string.IsNullOrEmpty(imagePath)) return;
+
+        var expected = ImageService.GetCachePath(imagePath, TargetImageType);
+        if (path != expected) return;
+
+        InvokeAsync(async () =>
+        {
+            try
+            {
+                _currentImage = await ImageService.GetImageAsync(imagePath, TargetImageType);
+                StateHasChanged();
+            }
+            catch { /* ignore */ }
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ImageService.OnImageGenerated -= HandleImageGenerated;
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+
+        if (_dotnetRef != null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("imageObserver.unobserve", _element);
+            }
+            catch { /* ignore */ }
+
+            _dotnetRef.Dispose();
+        }
+    }
+}
