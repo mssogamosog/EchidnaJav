@@ -29,7 +29,11 @@
 
     <div class="info">
         <div class="actress-name">@Actress.Name</div>
-        @if (!string.IsNullOrEmpty(Actress.JapaneseName))
+        @if (!string.IsNullOrEmpty(HighlightText))
+        {
+            <div class="actress-highlight">@HighlightText</div>
+        }
+        else if (!string.IsNullOrEmpty(Actress.JapaneseName))
         {
             <div class="actress-jp-name">@Actress.JapaneseName</div>
         }
@@ -39,6 +43,7 @@
 @code {
     [Parameter, EditorRequired] public ActressDetailsDto Actress { get; set; } = default!;
     [Parameter] public EventCallback<MouseEventArgs> OnActressClicked { get; set; }
+    [Parameter] public string? HighlightText { get; set; }
 
     private string? _currentImage;
     private ElementReference _element;

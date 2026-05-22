@@ -22,8 +22,8 @@ namespace EchidnaJav.Core.Domain.DTOs
         public int? Waist { get; set; }
         public int? Hips { get; set; }
         public string? BloodType { get; set; }
-
+        public int MovieCount { get; set; }
         public List<ActressImageDto> Images { get; set; } = new();
-        public List<MovieDto> Movies { get; set; } = new(); // The movies she stars in
+        public List<MovieDto> Movies { get; set; } = new(); 
     }
 }

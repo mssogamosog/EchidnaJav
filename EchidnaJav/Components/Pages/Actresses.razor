@@ -2,9 +2,11 @@
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
+@using EchidnaJav.Core.Infrastructure.Helpers
 @inject IActressRepositoryService Repo
 @inject NavigationManager Nav
 @inject TransientUIState UI
+@inject SearchFilterState SearchFilter
 @inject NavigationCacheState NavCache
 @inject IJSRuntime JS
 @implements IDisposable
@@ -18,33 +20,63 @@
     }
     else if (!actressList.Any())
     {
-        <div class="empty-state">No actresses found in the database.</div>
+        <div class="empty-state">No actresses found.</div>
     }
     else
     {
         <div class="actresses-grid">
             @foreach (var actress in actressList)
             {
-                <ActressCard Actress="@actress" OnActressClicked="() => GoToActress(actress.Name)" />
+                <ActressCard Actress="@actress"
+                             HighlightText="@GetHighlightText(actress)"
+                             OnActressClicked="() => GoToActress(actress.Name)" />
             }
         </div>
     }
 </div>
-
 @code {
     private List<ActressDetailsDto>? actressList;
     private IDisposable? _locationRegistration;
-
-    // The dictionary key used for saving this page's scroll position
     private const string PageKey = "Actresses";
 
     protected override async Task OnInitializedAsync()
     {
         UI.SetFooterText("Actresses");
-        actressList = await Repo.GetAllActressesAsync();
-
-        // Register the handler to intercept navigation away from this page
+        SearchFilter.OnSearchChanged += ReloadActresses;
         _locationRegistration = Nav.RegisterLocationChangingHandler(OnLocationChanging);
+
+        await FetchData();
+    }
+
+    private async void ReloadActresses()
+    {
+        await FetchData();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task FetchData()
+    {
+        actressList = await Repo.GetAllActressesAsync(SearchFilter.SearchText, SearchFilter.CurrentActressSort);
+    }
+
+    private string? GetHighlightText(ActressDetailsDto a)
+    {
+        return SearchFilter.CurrentActressSort switch
+        {
+            SortActressesBy.MovieCount => $"{a.MovieCount} Movies",
+            SortActressesBy.AgeYoungest or SortActressesBy.AgeOldest => a.GetCurrentAgeDisplay(),
+            SortActressesBy.HeightTallest or SortActressesBy.HeightShortest =>
+                a.Height.GetValueOrDefault(0) > 0 ? $"{a.Height} cm" : null,
+
+            SortActressesBy.CupSmallest or SortActressesBy.CupBiggest =>
+                        !string.IsNullOrEmpty(a.Cup) ? $"Cup Size: {a.Cup}" : null,
+            SortActressesBy.Birthday =>
+                a.DobMonth.GetValueOrDefault(0) > 0
+                    ? $"Birthday: {a.DobMonth:D2}/{a.DobDay:D2}"
+                    : null,
+
+            _ => null
+        };
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

@@ -13,7 +13,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task SetDefaultActressImageAsync(string actressName, string filePath);
         Task<ActressData?> GetActressDataForScraperAsync(string name);
         Task<List<string>> SearchActressNamesAsync(string query);
-        Task<List<ActressDetailsDto>> GetAllActressesAsync();
+        Task<List<ActressDetailsDto>> GetAllActressesAsync(string? searchText, SortActressesBy sortBy);
     }
 
     public class ActressRepositoryService : IActressRepositoryService
@@ -262,31 +262,97 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
             return suggestions;
         }
-        public async Task<List<ActressDetailsDto>> GetAllActressesAsync()
+        public async Task<List<ActressDetailsDto>> GetAllActressesAsync(string? searchText, SortActressesBy sortBy)
         {
             using var db = await _dbFactory.CreateDbContextAsync();
 
-            var entities = await db.Actresses
+            var query = db.Actresses
                 .AsNoTracking()
-                .Include(a => a.Images) 
-                .Where(a => a.Name != null)
-                .OrderBy(a => a.Name)
-                .ToListAsync();
+                .Where(a => a.Name != null);
 
-            return entities.Select(entity => new ActressDetailsDto
+            // 1. Apply Search
+            if (!string.IsNullOrWhiteSpace(searchText))
             {
-                Name = entity.Name ?? "Unknown",
-                JapaneseName = entity.JapaneseName,
-                Images = entity.Images != null
-                    ? entity.Images
-                        .OrderBy(i => i.Index)
-                        .Select(i => new ActressImageDto
-                        {
-                            Filepath = i.Filepath,
-                            Index = i.Index
-                        }).Take(1).ToList() 
+                var lowerSearch = searchText.ToLower();
+                query = query.Where(a => a.Name!.ToLower().Contains(lowerSearch) ||
+                                        (a.JapaneseName != null && a.JapaneseName.ToLower().Contains(lowerSearch)));
+            }
+            int currentMonth = DateTime.Today.Month;
+            int currentDay = DateTime.Today.Day;
+            // 2. Apply Sorting (pushing empty/zero values to the bottom)
+            query = sortBy switch
+            {
+                SortActressesBy.MovieCount => query.OrderByDescending(a => a.MovieActresses!.Count),
+
+                // Age Youngest: Valid years get '1' (sorted to top), nulls/0s get '0' (sorted to bottom)
+                SortActressesBy.AgeYoungest => query
+                    .OrderByDescending(a => a.DobYear != null && a.DobYear > 0 ? 1 : 0)
+                    .ThenByDescending(a => a.DobYear)
+                    .ThenByDescending(a => a.DobMonth)
+                    .ThenByDescending(a => a.DobDay),
+
+                // Age Oldest: Nulls/0s get '1' (sorted to bottom), valid years get '0' (sorted to top)
+                SortActressesBy.AgeOldest => query
+                    .OrderBy(a => a.DobYear == null || a.DobYear == 0 ? 1 : 0)
+                    .ThenBy(a => a.DobYear)
+                    .ThenBy(a => a.DobMonth)
+                    .ThenBy(a => a.DobDay),
+
+                // Same logic applied to Height
+                SortActressesBy.HeightTallest => query
+                    .OrderByDescending(a => a.Height != null && a.Height > 0 ? 1 : 0)
+                    .ThenByDescending(a => a.Height),
+
+                SortActressesBy.HeightShortest => query
+                    .OrderBy(a => a.Height == null || a.Height == 0 ? 1 : 0)
+                    .ThenBy(a => a.Height),
+
+                // Same logic applied to Cup Size
+                SortActressesBy.CupSmallest => query
+                    .OrderBy(a => a.Cup == null || a.Cup == "" ? 1 : 0)
+                    .ThenBy(a => a.Cup),
+
+                SortActressesBy.CupBiggest => query
+                    .OrderByDescending(a => a.Cup != null && a.Cup != "" ? 1 : 0)
+                    .ThenByDescending(a => a.Cup),
+
+                // Same logic applied to Birthdays
+                SortActressesBy.Birthday => query
+                    .OrderBy(a =>
+                        // Weight 2: Unknown birthdays pushed to the absolute bottom
+                        a.DobMonth == null || a.DobMonth == 0 ? 2 :
+
+                        // Weight 0: Upcoming birthdays (Month is greater, OR same month but day is >= today)
+                        (a.DobMonth > currentMonth || (a.DobMonth == currentMonth && a.DobDay >= currentDay)) ? 0 :
+
+                        // Weight 1: Birthdays that already passed this year (wrapped around to next year)
+                        1
+                    )
+                    .ThenBy(a => a.DobMonth) // Sort normally within their assigned weight group
+                    .ThenBy(a => a.DobDay),
+
+                _ => query.OrderBy(a => a.Name)
+            };
+
+            // 3. Project directly into DTO for fast performance
+            var projectedQuery = query.Select(a => new ActressDetailsDto
+            {
+                Name = a.Name ?? "Unknown",
+                JapaneseName = a.JapaneseName,
+                DobYear = a.DobYear,
+                DobMonth = a.DobMonth,
+                DobDay = a.DobDay,
+                Height = a.Height,
+                Cup = a.Cup,
+                MovieCount = a.MovieActresses != null ? a.MovieActresses.Count : 0,
+                Images = a.Images != null
+                    ? a.Images.OrderBy(i => i.Index)
+                              .Select(i => new ActressImageDto { Filepath = i.Filepath, Index = i.Index })
+                              .Take(1).ToList()
                     : new List<ActressImageDto>()
-            }).ToList();
+            });
+
+            return await projectedQuery.ToListAsync();
         }
     }
 }

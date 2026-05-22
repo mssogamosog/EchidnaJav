@@ -54,14 +54,25 @@
 
                         <div class="sort-container">
                             <span class="sort-label">Sort by:</span>
-                            <select class="toolbar-select"
-                                    value="@SearchFilter.CurrentSort"
-                                    @onchange="HandleSortChange">
-                                @foreach (SortMoviesBy sortOption in Enum.GetValues(typeof(SortMoviesBy)))
-                                {
-                                    <option value="@sortOption">@GetSortName(sortOption)</option>
-                                }
-                            </select>
+
+                            @if (IsActressesListPage)
+                            {
+                                <select class="toolbar-select" value="@SearchFilter.CurrentActressSort" @onchange="HandleActressSortChange">
+                                    @foreach (SortActressesBy sortOption in Enum.GetValues(typeof(SortActressesBy)))
+                                    {
+                                        <option value="@sortOption">@GetActressSortName(sortOption)</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <select class="toolbar-select" value="@SearchFilter.CurrentSort" @onchange="HandleSortChange">
+                                    @foreach (SortMoviesBy sortOption in Enum.GetValues(typeof(SortMoviesBy)))
+                                    {
+                                        <option value="@sortOption">@GetSortName(sortOption)</option>
+                                    }
+                                </select>
+                            }
                         </div>
                     </div>
                 </div>
@@ -167,6 +178,7 @@
     private bool IsMoviePage => NavManager.ToBaseRelativePath(NavManager.Uri).StartsWith("movie/", StringComparison.OrdinalIgnoreCase);
 
     private bool IsActressPage => NavManager.ToBaseRelativePath(NavManager.Uri).StartsWith("actress/", StringComparison.OrdinalIgnoreCase);
+    private bool IsActressesListPage => NavManager.ToBaseRelativePath(NavManager.Uri).Equals("actresses", StringComparison.OrdinalIgnoreCase);
 
     private string? CurrentMovieId
     {
@@ -238,8 +250,9 @@
         if (Enum.TryParse<SortMoviesBy>(e.Value?.ToString(), out var newSort))
         {
             SearchFilter.SetSort(newSort);
+
             var currentPath = NavManager.ToBaseRelativePath(NavManager.Uri);
-            if (currentPath != "" && !currentPath.StartsWith("actress/", StringComparison.OrdinalIgnoreCase))
+            if (ShouldRedirectToHome(currentPath))
             {
                 NavManager.NavigateTo("/");
             }
@@ -261,8 +274,9 @@
         InvokeAsync(() =>
         {
             SearchFilter.SetSearchText(_searchInput);
+
             var currentPath = NavManager.ToBaseRelativePath(NavManager.Uri);
-            if (currentPath != "" && !currentPath.StartsWith("actress/", StringComparison.OrdinalIgnoreCase))
+            if (ShouldRedirectToHome(currentPath))
             {
                 NavManager.NavigateTo("/");
             }
@@ -276,7 +290,16 @@
         var value = e.Value!.ToString();
         await JS.InvokeVoidAsync("setCardWidth", $"{value}px");
     }
+    private bool ShouldRedirectToHome(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false; 
 
+        if (path.Equals("actresses", StringComparison.OrdinalIgnoreCase)) return false; 
+
+        if (path.StartsWith("actress/", StringComparison.OrdinalIgnoreCase)) return false; 
+
+        return true; 
+    }
     void SaveResize(ChangeEventArgs e)
     {
         AppPrefs.SetWidth(int.Parse(e.Value!.ToString()!));
@@ -383,4 +406,25 @@
             }
         }
     }
+    private void HandleActressSortChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<SortActressesBy>(e.Value?.ToString(), out var newSort))
+        {
+            SearchFilter.SetActressSort(newSort);
+        }
+    }
+
+    private string GetActressSortName(SortActressesBy sort) => sort switch
+    {
+        SortActressesBy.Name => "Name (A-Z)",
+        SortActressesBy.MovieCount => "Movie Count",
+        SortActressesBy.AgeYoungest => "Age (Youngest)",
+        SortActressesBy.AgeOldest => "Age (Oldest)",
+        SortActressesBy.HeightTallest => "Height (Tallest)",
+        SortActressesBy.HeightShortest => "Height (Shortest)",
+        SortActressesBy.CupSmallest => "Cup Size (Smallest)",
+        SortActressesBy.CupBiggest => "Cup Size (Biggest)",
+        SortActressesBy.Birthday => "Birthday",
+        _ => sort.ToString()
+    };
 }

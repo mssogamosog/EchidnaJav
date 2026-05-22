@@ -8,7 +8,7 @@ namespace EchidnaJav.Core.Domain.States
         public string SearchText { get; private set; } = string.Empty;
         public SortMoviesBy CurrentSort { get; private set; } = SortMoviesBy.RecentlyAdded;
         public int TotalDatabaseCount { get; private set; }
-
+        public SortActressesBy CurrentActressSort { get; private set; } = SortActressesBy.MovieCount;
         public event Action? OnSearchChanged;
         public event Action? OnMetadataChanged;
 
@@ -29,7 +29,14 @@ namespace EchidnaJav.Core.Domain.States
                 OnSearchChanged?.Invoke();
             }
         }
-
+        public void SetActressSort(SortActressesBy sort)
+        {
+            if (CurrentActressSort != sort)
+            {
+                CurrentActressSort = sort;
+                OnSearchChanged?.Invoke();
+            }
+        }
         public void SetSort(SortMoviesBy sort)
         {
             if (CurrentSort != sort)
