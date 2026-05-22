@@ -4,7 +4,8 @@
 @using EchidnaJav.Core.Infrastructure.Persistence
 @inject IActressRepositoryService Repo
 @inject NavigationManager Nav
-@inject SearchState UI
+@inject TransientUIState UI
+@inject NavigationCacheState NavCache
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -34,22 +35,29 @@
     private List<ActressDetailsDto>? actressList;
     private IDisposable? _locationRegistration;
 
+    // The dictionary key used for saving this page's scroll position
+    private const string PageKey = "Actresses";
+
     protected override async Task OnInitializedAsync()
     {
-        //UI.SetFooterText("Actresses");
+        UI.SetFooterText("Actresses");
         actressList = await Repo.GetAllActressesAsync();
 
+        // Register the handler to intercept navigation away from this page
         _locationRegistration = Nav.RegisterLocationChangingHandler(OnLocationChanging);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // When the page first renders and data is loaded, restore the scroll position
         if (firstRender)
         {
-            if (UI.ActressesScrollPosition > 0)
+            var savedScroll = NavCache.GetCache(PageKey).ScrollPosition;
+            if (savedScroll > 0)
             {
+                // A small delay ensures the DOM has fully populated the grid before scrolling
                 await Task.Yield();
-                await JS.InvokeVoidAsync("setScrollPos", UI.ActressesScrollPosition);
+                await JS.InvokeVoidAsync("setScrollPos", savedScroll);
             }
         }
     }
@@ -58,12 +66,13 @@
     {
         try
         {
-            // Save the current scroll position right before the page changes
+            // Save the current scroll position into the generic dictionary right before the page changes
             double scroll = await JS.InvokeAsync<double>("getScrollPos");
-            UI.ActressesScrollPosition = scroll;
+            NavCache.GetCache(PageKey).ScrollPosition = scroll;
         }
         catch
         {
+            // Ignore JS interop errors during rapid navigation
         }
     }
 
@@ -74,6 +83,7 @@
 
     public void Dispose()
     {
+        // Clean up the event listener to prevent memory leaks
         _locationRegistration?.Dispose();
     }
 }

@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EchidnaJav.Core.Domain.States
 {
-    public class UIState
+    public class AppPreferencesState
     {
         public bool UseWideView { get; private set; } = false;
-        public int SelectedMoviesCount { get; private set; }
-        public string? FooterText { get; private set; }
         public int CardWidth { get; private set; } = 180;
 
         public event Action? OnChange;
+
         public void SetPosterView()
         {
             UseWideView = false;
@@ -33,20 +30,6 @@ namespace EchidnaJav.Core.Domain.States
         private void Notify()
         {
             OnChange?.Invoke();
-        }
-        public void UpdateSelectedCount(int count)
-        {
-            SelectedMoviesCount = count;
-            Notify();
-        }
-
-        public void SetFooterText(string? title)
-        {
-            if (FooterText != title)
-            {
-                FooterText = title;
-                Notify();
-            }
         }
     }
 }

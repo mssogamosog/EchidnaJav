@@ -3,69 +3,76 @@
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @inject IMovieRepositoryService MovieRepo
-@inject UIState UI
-@inject SearchState SearchState
+@inject AppPreferencesState AppPrefs
+@inject TransientUIState UI
+@inject SearchFilterState SearchFilter
+@inject NavigationCacheState NavCache
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @implements IAsyncDisposable
+
 <div @ref="_workspaceContainer" class="movie-workspace">
-<div class="movie-grid" style="--card-width:@($"{EffectiveWidth}px")" @onclick="ClearSelection">
-    @for (int i = 0; i < Movies.Count; i++)
-    {
-        var index = i; // Local copy for the lambda closure
-        var movie = Movies[i];
-
-        <MovieCard @key="movie.Id"
-                   Movie="movie"
-                   UseFullImage="UI.UseWideView"
-                   IsSelected="_selectedMovieIds.Contains(movie.Id)"
-                   OnMovieClicked="(e) => HandleMovieClick(movie, index, e)"
-                   OnMovieRightClicked="(e) => HandleRightClick(movie, index, e)" />
-    }
-</div>
-
-@if (hasMore)
-{
-    <div @ref="_triggerElement" class="load-more-trigger">
-        @if (isLoading)
+    <div class="movie-grid" style="--card-width:@($"{EffectiveWidth}px")" @onclick="ClearSelection">
+        @for (int i = 0; i < Movies.Count; i++)
         {
-            <span class="loading-spinner">Loading...</span>
+            var index = i; // Local copy for the lambda closure
+            var movie = Movies[i];
+
+            <MovieCard @key="movie.Id"
+                       Movie="movie"
+                       UseFullImage="AppPrefs.UseWideView"
+                       IsSelected="_selectedMovieIds.Contains(movie.Id)"
+                       OnMovieClicked="(e) => HandleMovieClick(movie, index, e)"
+                       OnMovieRightClicked="(e) => HandleRightClick(movie, index, e)" />
         }
     </div>
-}
-else if (Movies.Any())
-{
-    <div class="pagination-area">
-        <p class="end-of-list">No more movies to load.</p>
-    </div>
-}
 
-<!-- NEW: The central context menu for the entire grid -->
-<MovieContextMenu IsVisible="_isMenuVisible"
-                  X="_menuX" Y="_menuY"
-                  SelectedMovies="GetSelectedMovieObjects()"
-                  OnClose="() => _isMenuVisible = false"
-                  OnMoviesUpdated="HandleMoviesUpdated" />
+    @if (hasMore)
+    {
+        <div @ref="_triggerElement" class="load-more-trigger">
+            @if (isLoading)
+            {
+                <span class="loading-spinner">Loading...</span>
+            }
+        </div>
+    }
+    else if (Movies.Any())
+    {
+        <div class="pagination-area">
+            <p class="end-of-list">No more movies to load.</p>
+        </div>
+    }
+
+    <MovieContextMenu IsVisible="_isMenuVisible"
+                      X="_menuX" Y="_menuY"
+                      SelectedMovies="GetSelectedMovieObjects()"
+                      OnClose="() => _isMenuVisible = false"
+                      OnMoviesUpdated="HandleMoviesUpdated" />
 </div>
+
 @code {
     [Parameter] public string? FixedActress { get; set; }
 
     private List<MovieDto> Movies = new();
     private ElementReference _triggerElement;
-    private DotNetObjectReference<Home>? _dotnetRef; 
+    private DotNetObjectReference<Home>? _dotnetRef;
     private CancellationTokenSource? _cts;
     private bool _disposed = false;
     private string? _appliedActress;
     private ElementReference _workspaceContainer;
     private DotNetObjectReference<Home>? _clickOutsideDotNetRef;
-    private int EffectiveWidth => UI.UseWideView ? (int)(UI.CardWidth * 2.1) : UI.CardWidth;
     private IDisposable? _locationRegistration;
+
+    private int EffectiveWidth => AppPrefs.UseWideView ? (int)(AppPrefs.CardWidth * 2.1) : AppPrefs.CardWidth;
+
+    // Dynamic Cache Key: "Home" for the main page, or "Actress_Name" for actress filtering
+    private string CurrentPageKey => string.IsNullOrEmpty(FixedActress) ? "Home" : $"Actress_{FixedActress}";
 
     private bool isLoading = false;
     private bool hasMore = true;
     private bool _observerRegistered = false;
 
-    // --- NEW SELECTION STATE ---
+    // --- SELECTION STATE ---
     private HashSet<string> _selectedMovieIds = new();
     private int _lastSelectedIndex = -1;
     private bool _isMenuVisible = false;
@@ -74,42 +81,13 @@ else if (Movies.Any())
 
     protected override void OnInitialized()
     {
-        UI.OnChange += Refresh;
-        SearchState.OnSearchChanged += HandleSearchChanged;
+        AppPrefs.OnChange += Refresh;
+        SearchFilter.OnSearchChanged += HandleSearchChanged;
         _locationRegistration = Nav.RegisterLocationChangingHandler(OnLocationChanging);
-        if (string.IsNullOrEmpty(FixedActress))
-        {
-            if (SearchState.HomeBackupMovies.Any())
-            {
-                Movies = new List<MovieDto>(SearchState.HomeBackupMovies);
-                hasMore = SearchState.HomeBackupHasMore;
 
-                SearchState.CachedMovies = new List<MovieDto>(Movies);
-                SearchState.SetTotalCount(SearchState.HomeBackupTotal);
-                SearchState.ActiveCacheActress = null;
-            }
-        }
-        else
-        {
-            if (SearchState.ActiveCacheActress == FixedActress && SearchState.CachedMovies.Any())
-            {
-                Movies = new List<MovieDto>(SearchState.CachedMovies);
-                hasMore = SearchState.HasMoreCached;
-            }
-        }
+        LoadFromCache();
     }
-    private async ValueTask OnLocationChanging(LocationChangingContext context)
-    {
-        try
-        {
-            var scroll = await JS.InvokeAsync<double>("getScrollPos");
-            if (string.IsNullOrEmpty(_appliedActress))
-                SearchState.HomeBackupScroll = scroll;
-            else
-                SearchState.ScrollPosition = scroll;
-        }
-        catch { }
-    }
+
     protected override async Task OnParametersSetAsync()
     {
         var currentRelativePath = Nav.ToBaseRelativePath(Nav.Uri);
@@ -119,54 +97,50 @@ else if (Movies.Any())
         {
             _appliedActress = activeActress;
             Movies.Clear();
-            ClearSelection(); // Clear selection on page navigation
+            ClearSelection();
             hasMore = true;
 
-            if (activeActress == null)
-            {
-                if (SearchState.HomeBackupMovies.Any())
-                {
-                    Movies = new List<MovieDto>(SearchState.HomeBackupMovies);
-                    hasMore = SearchState.HomeBackupHasMore;
-
-                    SearchState.CachedMovies = new List<MovieDto>(Movies);
-                    SearchState.SetTotalCount(SearchState.HomeBackupTotal);
-                    SearchState.ActiveCacheActress = null;
-                }
-            }
-            else
-            {
-                if (SearchState.ActiveCacheActress == activeActress && SearchState.CachedMovies.Any())
-                {
-                    Movies = new List<MovieDto>(SearchState.CachedMovies);
-                    hasMore = SearchState.HasMoreCached;
-                }
-            }
-
+            LoadFromCache();
             StateHasChanged();
         }
     }
 
-    // --- NEW SELECTION & CONTEXT MENU HANDLERS ---
+    private void LoadFromCache()
+    {
+        var cache = NavCache.GetCache(CurrentPageKey);
+        if (cache.Movies.Any())
+        {
+            Movies = new List<MovieDto>(cache.Movies);
+            hasMore = cache.HasMore;
+            SearchFilter.SetTotalCount(cache.TotalCount);
+        }
+    }
 
+    private async ValueTask OnLocationChanging(LocationChangingContext context)
+    {
+        try
+        {
+            var scroll = await JS.InvokeAsync<double>("getScrollPos");
+            NavCache.GetCache(CurrentPageKey).ScrollPosition = scroll;
+        }
+        catch { }
+    }
+
+    // --- SELECTION & CONTEXT MENU HANDLERS ---
     private async Task HandleMovieClick(MovieDto movie, int index, MouseEventArgs e)
     {
         _isMenuVisible = false;
 
-        if (e.CtrlKey || e.MetaKey) // MetaKey is Command on Mac
+        if (e.CtrlKey || e.MetaKey)
         {
-            // Toggle individual selection
-            if (_selectedMovieIds.Contains(movie.Id))
-                _selectedMovieIds.Remove(movie.Id);
-            else
-                _selectedMovieIds.Add(movie.Id);
+            if (_selectedMovieIds.Contains(movie.Id)) _selectedMovieIds.Remove(movie.Id);
+            else _selectedMovieIds.Add(movie.Id);
 
             _lastSelectedIndex = index;
             StateHasChanged();
         }
         else if (e.ShiftKey && _lastSelectedIndex != -1)
         {
-            // Range selection
             _selectedMovieIds.Clear();
             var start = Math.Min(_lastSelectedIndex, index);
             var end = Math.Max(_lastSelectedIndex, index);
@@ -175,27 +149,22 @@ else if (Movies.Any())
             {
                 _selectedMovieIds.Add(Movies[i].Id);
             }
-
             StateHasChanged();
         }
         else
         {
-           
-
-            // Now it is safe to navigate!
             Nav.NavigateTo($"/movie/{movie.Id}");
         }
     }
 
     private void HandleRightClick(MovieDto movie, int index, MouseEventArgs e)
     {
-        // If the user right-clicks an unselected movie, clear others and select it
         if (!_selectedMovieIds.Contains(movie.Id))
         {
             _selectedMovieIds.Clear();
             _selectedMovieIds.Add(movie.Id);
             _lastSelectedIndex = index;
-            StateHasChanged(); // Force update so the UI reflects the new selection
+            StateHasChanged();
         }
 
         _menuX = e.ClientX;
@@ -213,22 +182,16 @@ else if (Movies.Any())
         }
     }
 
-    private List<MovieDto> GetSelectedMovieObjects()
-    {
-        return Movies.Where(m => _selectedMovieIds.Contains(m.Id)).ToList();
-    }
+    private List<MovieDto> GetSelectedMovieObjects() => Movies.Where(m => _selectedMovieIds.Contains(m.Id)).ToList();
 
     private async Task HandleMoviesUpdated()
     {
         _isMenuVisible = false;
         ClearSelection();
-        // Option 1: Just call StateHasChanged to update images.
-        // Option 2: Re-fetch the current page if DB data heavily changed.
         StateHasChanged();
     }
 
     // --- EXISTING HANDLERS ---
-
     private void HandleSearchChanged()
     {
         _cts?.Cancel();
@@ -242,38 +205,25 @@ else if (Movies.Any())
                 _observerRegistered = false;
             }
 
+            NavCache.ResetCache(CurrentPageKey); // Reset cache for new search
             Movies.Clear();
-            ClearSelection(); // Clear selection on new search
+            ClearSelection();
             hasMore = true;
             isLoading = false;
             await LoadMore();
         });
     }
 
-    public async Task CopyAllMovieIdsAsync()
-    {
-        var ids = await MovieRepo.GetAllMovieIdsAsync();
-        var text = string.Join(Environment.NewLine, ids);
-        // await Clipboard.Default.SetTextAsync(text);
-    }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await CopyAllMovieIdsAsync();
             _clickOutsideDotNetRef = DotNetObjectReference.Create(this);
-            try
-            {
-                await JS.InvokeVoidAsync("clickOutsideHandler.addEvent", _workspaceContainer, _clickOutsideDotNetRef);
-            }
-            catch {  }
+            try { await JS.InvokeVoidAsync("clickOutsideHandler.addEvent", _workspaceContainer, _clickOutsideDotNetRef); } catch { }
+
             if (Movies.Any())
             {
-                double targetScroll = string.IsNullOrEmpty(FixedActress)
-                    ? SearchState.HomeBackupScroll
-                    : SearchState.ScrollPosition;
-
+                double targetScroll = NavCache.GetCache(CurrentPageKey).ScrollPosition;
                 if (targetScroll > 0)
                 {
                     await JS.InvokeVoidAsync("setScrollPos", targetScroll);
@@ -298,21 +248,11 @@ else if (Movies.Any())
     [JSInvokable]
     public async Task OnScrollToBottom()
     {
-        if (!isLoading && hasMore)
-        {
-            await LoadMore();
-        }
+        if (!isLoading && hasMore) await LoadMore();
     }
+
     [JSInvokable]
-    public void OnClickedOutside()
-    {
-        if (_selectedMovieIds.Any() || _isMenuVisible)
-        {
-            _selectedMovieIds.Clear();
-            _isMenuVisible = false;
-            StateHasChanged();
-        }
-    }
+    public void OnClickedOutside() => ClearSelection();
 
     private async Task LoadMore(CancellationToken ct = default)
     {
@@ -329,12 +269,11 @@ else if (Movies.Any())
 
             int remainder = Movies.Count % columns;
             int missingToFillRow = (columns - remainder) % columns;
-
             int targetItems = 50;
             int rowsToAdd = (int)Math.Ceiling((double)targetItems / columns);
             int dynamicPageSize = missingToFillRow + (rowsToAdd * columns);
 
-            string rawSearch = SearchState.SearchText ?? string.Empty;
+            string rawSearch = SearchFilter.SearchText ?? string.Empty;
             bool wantsNoCover = rawSearch.Contains("no-cover", StringComparison.OrdinalIgnoreCase);
             string cleanSearchText = rawSearch.Replace("no-cover", "", StringComparison.OrdinalIgnoreCase).Trim();
 
@@ -344,7 +283,7 @@ else if (Movies.Any())
                 MissingImageOnly = wantsNoCover,
                 Skip = Movies.Count,
                 Take = dynamicPageSize,
-                SortBy = SearchState.CurrentSort,
+                SortBy = SearchFilter.CurrentSort,
                 SearchActress = _appliedActress
             };
 
@@ -353,37 +292,22 @@ else if (Movies.Any())
                 var total = await MovieRepo.GetTotalMovieCountAsync(queryParams);
                 if (ct.IsCancellationRequested) return;
 
-                SearchState.SetTotalCount(total);
-
-                if (string.IsNullOrEmpty(_appliedActress))
-                    SearchState.HomeBackupTotal = total;
+                SearchFilter.SetTotalCount(total);
+                NavCache.GetCache(CurrentPageKey).TotalCount = total;
             }
 
             var result = await MovieRepo.GetMoviesAsync(queryParams);
-
             if (result != null && result.Any())
             {
                 var newMovies = result.Where(fetched => !Movies.Any(existing => existing.Id == fetched.Id)).ToList();
+                if (newMovies.Any()) Movies.AddRange(newMovies);
 
-                if (newMovies.Any())
-                {
-                    Movies.AddRange(newMovies);
-                }
+                if (result.Count() < dynamicPageSize) hasMore = false;
 
-                if (result.Count() < dynamicPageSize)
-                {
-                    hasMore = false;
-                }
-
-                SearchState.CachedMovies = new List<MovieDto>(Movies);
-                SearchState.HasMoreCached = hasMore;
-                SearchState.ActiveCacheActress = _appliedActress;
-
-                if (string.IsNullOrEmpty(_appliedActress))
-                {
-                    SearchState.HomeBackupMovies = new List<MovieDto>(Movies);
-                    SearchState.HomeBackupHasMore = hasMore;
-                }
+                // Sync the loaded data back to the dictionary cache dynamically!
+                var cache = NavCache.GetCache(CurrentPageKey);
+                cache.Movies = new List<MovieDto>(Movies);
+                cache.HasMore = hasMore;
             }
             else
             {
@@ -408,20 +332,16 @@ else if (Movies.Any())
         _disposed = true;
         _cts?.Cancel();
         _cts?.Dispose();
-        UI.OnChange -= Refresh;
-        SearchState.OnSearchChanged -= HandleSearchChanged;
+
+        AppPrefs.OnChange -= Refresh;
+        SearchFilter.OnSearchChanged -= HandleSearchChanged;
         _locationRegistration?.Dispose();
+
         if (_clickOutsideDotNetRef != null)
         {
-            try
-            {
-                await JS.InvokeVoidAsync("clickOutsideHandler.removeEvent", _workspaceContainer);
-            }
-            catch { }
-
+            try { await JS.InvokeVoidAsync("clickOutsideHandler.removeEvent", _workspaceContainer); } catch { }
             _clickOutsideDotNetRef.Dispose();
         }
-       
 
         if (_dotnetRef != null)
         {

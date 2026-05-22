@@ -3,8 +3,11 @@
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
 @inherits LayoutComponentBase
-@inject UIState UI
-@inject SearchState SearchState
+
+@inject AppPreferencesState AppPrefs
+@inject TransientUIState UI
+@inject SearchFilterState SearchFilter
+@inject NavigationCacheState NavCache
 @inject IJSRuntime JS
 @inject INavigationStateService NavState
 @inject NavigationManager NavManager
@@ -15,22 +18,16 @@
     <div class="main-shell">
 
         <header class="header-bar">
-
             <button class="menu-btn" @onclick="ToggleMenu">☰</button>
-            
-            <div class="logo">
-                EchidnaJav
-            </div>
 
-            <div class="page-title">
-                Home
-            </div>
+            <div class="logo">EchidnaJav</div>
+
+            <div class="page-title">Home</div>
 
             <input class="search-box"
                    placeholder="Search movies..."
                    value="@_searchInput"
                    @oninput="HandleSearchInput" />
-
         </header>
 
         @if (menuOpen && isMobile)
@@ -43,11 +40,10 @@
             <aside class="sidebar @(menuOpen ? "open" : "closed")">
                 <NavMenu />
             </aside>
-            <div class="content-shell">
 
+            <div class="content-shell">
                 <div class="toolbar">
                     <div class="filters-left">
-        
                         <select class="toolbar-select" disabled>
                             <option>All Genres</option>
                         </select>
@@ -59,7 +55,7 @@
                         <div class="sort-container">
                             <span class="sort-label">Sort by:</span>
                             <select class="toolbar-select"
-                                    value="@SearchState.CurrentSort"
+                                    value="@SearchFilter.CurrentSort"
                                     @onchange="HandleSortChange">
                                 @foreach (SortMoviesBy sortOption in Enum.GetValues(typeof(SortMoviesBy)))
                                 {
@@ -71,7 +67,6 @@
                 </div>
 
                 <div class="sub-navigation-bar">
-
                     <div class="sub-nav-left">
                         <div class="browser-controls">
                             <button class="nav-btn" disabled="@(!NavState.CanGoBack)" @onclick="NavState.GoBack" title="Go Back">
@@ -118,17 +113,16 @@
 
                     <div class="sub-nav-right">
                         <div class="view-buttons">
-                            <button class="@(UI.UseWideView ? "" : "active")" @onclick="UI.SetPosterView">▦</button>
-                            <button class="@(UI.UseWideView ? "active" : "")" @onclick="UI.SetWideView">▭</button>
+                            <button class="@(AppPrefs.UseWideView ? "" : "active")" @onclick="AppPrefs.SetPosterView">▦</button>
+                            <button class="@(AppPrefs.UseWideView ? "active" : "")" @onclick="AppPrefs.SetWideView">▭</button>
                         </div>
                     </div>
-
                 </div>
-                
+
                 <main class="content-area">
                     @Body
                 </main>
-                
+
                 @if (!IsMoviePage)
                 {
                     <div class="size-slider-shell">
@@ -137,19 +131,19 @@
                                    min="120"
                                    max="320"
                                    step="10"
-                                   value="@UI.CardWidth"
+                                   value="@AppPrefs.CardWidth"
                                    @oninput="LiveResize"
                                    @onchange="SaveResize" />
                         </div>
                     </div>
                 }
             </div>
-
         </div>
+
         <div class="widget-stack-container">
             <ScraperProgressWidget />
         </div>
-        
+
         <footer class="status-bar">
             <div class="status-left">
                 @if (UI.SelectedMoviesCount > 0)
@@ -163,18 +157,17 @@
             </div>
 
             <div class="status-right">
-                Displaying @SearchState.DisplayedMoviesCount of @SearchState.TotalDatabaseCount
+                Displaying @NavCache.GetCache(NavCache.LastActiveListKey).Movies.Count of @SearchFilter.TotalDatabaseCount
             </div>
         </footer>
     </div>
 </div>
 
 @code {
-    private bool IsMoviePage => NavManager.ToBaseRelativePath(NavManager.Uri)
-                                          .StartsWith("movie/", StringComparison.OrdinalIgnoreCase);
+    private bool IsMoviePage => NavManager.ToBaseRelativePath(NavManager.Uri).StartsWith("movie/", StringComparison.OrdinalIgnoreCase);
 
-    private bool IsActressPage => NavManager.ToBaseRelativePath(NavManager.Uri)
-                                            .StartsWith("actress/", StringComparison.OrdinalIgnoreCase);
+    private bool IsActressPage => NavManager.ToBaseRelativePath(NavManager.Uri).StartsWith("actress/", StringComparison.OrdinalIgnoreCase);
+
     private string? CurrentMovieId
     {
         get
@@ -182,38 +175,35 @@
             var path = NavManager.ToBaseRelativePath(NavManager.Uri);
             if (path.StartsWith("movie/", StringComparison.OrdinalIgnoreCase))
             {
-                return Uri.UnescapeDataString(path.Substring(6)); // Strip "movie/"
+                return Uri.UnescapeDataString(path.Substring(6));
             }
             return null;
         }
     }
 
-    private bool CanGoPrevious => CurrentMovieId != null && SearchState.GetPreviousMovieId(CurrentMovieId) != null;
-    private bool CanGoNext => CurrentMovieId != null && SearchState.GetNextMovieId(CurrentMovieId) != null;
+    private bool CanGoPrevious => CurrentMovieId != null && NavCache.GetPreviousMovieId(NavCache.LastActiveListKey, CurrentMovieId) != null;
+    private bool CanGoNext => CurrentMovieId != null && NavCache.GetNextMovieId(NavCache.LastActiveListKey, CurrentMovieId) != null;
+
     private string _searchInput = string.Empty;
     private System.Timers.Timer? _debounceTimer;
     private DotNetObjectReference<MainLayout>? objRef;
-    
+
     bool menuOpen = true;
     bool isMobile = false;
 
-    void ToggleMenu()
-    {
-        menuOpen = !menuOpen;
-    }
-
-    void CloseMenu()
-    {
-        menuOpen = false;
-    }
+    void ToggleMenu() => menuOpen = !menuOpen;
+    void CloseMenu() => menuOpen = false;
 
     protected override void OnInitialized()
     {
-        NavState.StateChanged += StateHasChanged;        
+        NavState.StateChanged += StateHasChanged;
         NavManager.LocationChanged += OnLocationChanged;
-        SearchState.OnSearchChanged += StateHasChanged;
-        SearchState.OnMetadataChanged += StateHasChanged;
+
+        SearchFilter.OnSearchChanged += StateHasChanged;
+        SearchFilter.OnMetadataChanged += StateHasChanged;
+        AppPrefs.OnChange += SafeRefresh;
         UI.OnChange += SafeRefresh;
+
         _debounceTimer = new System.Timers.Timer(400);
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += PerformSearch;
@@ -221,7 +211,18 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-      
+        // Track the last viewed grid to allow next/previous on the Movie page
+        var path = NavManager.ToBaseRelativePath(e.Location);
+        if (string.IsNullOrEmpty(path))
+        {
+            NavCache.LastActiveListKey = "Home";
+        }
+        else if (path.StartsWith("actress/", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = path.Split('/');
+            if (parts.Length > 1) NavCache.LastActiveListKey = $"Actress_{Uri.UnescapeDataString(parts[1])}";
+        }
+
         InvokeAsync(StateHasChanged);
     }
 
@@ -231,12 +232,12 @@
         _debounceTimer?.Stop();
         _debounceTimer?.Start();
     }
+
     private void HandleSortChange(ChangeEventArgs e)
     {
         if (Enum.TryParse<SortMoviesBy>(e.Value?.ToString(), out var newSort))
         {
-            SearchState.SetSort(newSort);
-
+            SearchFilter.SetSort(newSort);
             var currentPath = NavManager.ToBaseRelativePath(NavManager.Uri);
             if (currentPath != "" && !currentPath.StartsWith("actress/", StringComparison.OrdinalIgnoreCase))
             {
@@ -250,21 +251,22 @@
         SortMoviesBy.ID => "Movie ID",
         SortMoviesBy.RecentlyAdded => "Recently Added",
         SortMoviesBy.DateNewest => "Release Date (Newest)",
-        SortMoviesBy.DateOldest => "Release Date (Oldest)",        
-        SortMoviesBy.ActressName => "Actress Name (A-Z)",        
+        SortMoviesBy.DateOldest => "Release Date (Oldest)",
+        SortMoviesBy.ActressName => "Actress Name (A-Z)",
         _ => sort.ToString()
     };
+
     private void PerformSearch(object? sender, System.Timers.ElapsedEventArgs e)
     {
         InvokeAsync(() =>
         {
-            SearchState.SetSearchText(_searchInput);
+            SearchFilter.SetSearchText(_searchInput);
             var currentPath = NavManager.ToBaseRelativePath(NavManager.Uri);
             if (currentPath != "" && !currentPath.StartsWith("actress/", StringComparison.OrdinalIgnoreCase))
             {
                 NavManager.NavigateTo("/");
             }
-            
+
             StateHasChanged();
         });
     }
@@ -277,7 +279,7 @@
 
     void SaveResize(ChangeEventArgs e)
     {
-        UI.SetWidth(int.Parse(e.Value!.ToString()!));
+        AppPrefs.SetWidth(int.Parse(e.Value!.ToString()!));
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -285,7 +287,6 @@
         if (firstRender)
         {
             objRef = DotNetObjectReference.Create(this);
-
             await JS.InvokeVoidAsync("registerResizeHandler", objRef);
             await JS.InvokeVoidAsync("registerGlobalKeyHandler", objRef);
 
@@ -302,24 +303,19 @@
     public void OnBrowserResize(int width)
     {
         bool nowMobile = width < 900;
-
-        // only react when breakpoint changes
         if (nowMobile != isMobile)
         {
             isMobile = nowMobile;
+            if (isMobile) menuOpen = false;
+            else menuOpen = true;
 
-            if (isMobile)
-                menuOpen = false;   // entering mobile closes
-            else
-                menuOpen = true;    // entering desktop opens
-                
             InvokeAsync(StateHasChanged);
         }
     }
+
     [JSInvokable]
     public void OnGlobalArrowLeft()
     {
-        // Only trigger if we are actually looking at a movie, and a previous one exists
         if (IsMoviePage && CanGoPrevious)
         {
             GoToPrevious();
@@ -330,7 +326,6 @@
     [JSInvokable]
     public void OnGlobalArrowRight()
     {
-        // Only trigger if we are actually looking at a movie, and a next one exists
         if (IsMoviePage && CanGoNext)
         {
             GoToNext();
@@ -342,29 +337,32 @@
     {
         NavState.StateChanged -= StateHasChanged;
         NavManager.LocationChanged -= OnLocationChanged;
-        SearchState.OnSearchChanged -= StateHasChanged;
-        SearchState.OnMetadataChanged -= StateHasChanged;
+        SearchFilter.OnSearchChanged -= StateHasChanged;
+        SearchFilter.OnMetadataChanged -= StateHasChanged;
+        AppPrefs.OnChange -= SafeRefresh;
         UI.OnChange -= SafeRefresh;
+
         objRef?.Dispose();
 
-        // Safely dispose of the timer
         if (_debounceTimer != null)
         {
             _debounceTimer.Elapsed -= PerformSearch;
             _debounceTimer.Dispose();
         }
     }
+
     private void GoToPrevious()
     {
         if (CurrentMovieId != null)
         {
-            var prevId = SearchState.GetPreviousMovieId(CurrentMovieId);
+            var prevId = NavCache.GetPreviousMovieId(NavCache.LastActiveListKey, CurrentMovieId);
             if (prevId != null)
             {
                 NavManager.NavigateTo($"/movie/{Uri.EscapeDataString(prevId)}", replace: true);
             }
         }
     }
+
     private void SafeRefresh()
     {
         InvokeAsync(() =>
@@ -373,11 +371,12 @@
             catch (ObjectDisposedException) { }
         });
     }
+
     private void GoToNext()
     {
         if (CurrentMovieId != null)
         {
-            var nextId = SearchState.GetNextMovieId(CurrentMovieId);
+            var nextId = NavCache.GetNextMovieId(NavCache.LastActiveListKey, CurrentMovieId);
             if (nextId != null)
             {
                 NavManager.NavigateTo($"/movie/{Uri.EscapeDataString(nextId)}", replace: true);

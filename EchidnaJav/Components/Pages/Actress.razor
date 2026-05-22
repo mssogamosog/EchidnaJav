@@ -6,7 +6,7 @@
 @inject IActressRepositoryService Repo
 @inject IImageService ImageService
 @inject NavigationManager Nav
-@inject UIState UI
+@inject TransientUIState UI
 
 <div class="actress-page-container">
     @if (actress == null)
@@ -92,20 +92,16 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // Decode the URL (e.g. "Aika%20Yumeno" back to "Aika Yumeno")
         string decodedName = Uri.UnescapeDataString(Name);
-        // Fetch the details from your repository
         actress = await Repo.GetActressDetailsAsync(decodedName);
 
         if (actress != null)
         {
             UI.SetFooterText(actress.Name);
 
-            // 🔥 Process the first available image using your ImageService
             var primaryImage = actress.Images.FirstOrDefault();
             if (primaryImage != null)
             {
-                // We use ImageType.Cover or ImageType.Full depending on your preference for the profile header
                 actressImage = await ImageService.GetImageAsync(primaryImage.Filepath, ImageType.Full);
             }
         }
@@ -114,16 +110,12 @@
     {
         if (actress == null || !actress.Images.Any()) return;
 
-        // Circular math: (index + direction + length) % length
         int count = actress.Images.Count;
         currentIndex = (currentIndex + direction + count) % count;
 
         var selectedImage = actress.Images[currentIndex];
         
-        // 1. Update UI
         await LoadCurrentImage();
-
-        // 2. Persist to DB: Make this image index 0
         await Repo.SetDefaultActressImageAsync(actress.Name, selectedImage.Filepath);
     }
 

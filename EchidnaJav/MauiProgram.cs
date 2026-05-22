@@ -48,8 +48,10 @@ namespace EchidnaJav
 
             // UI & Runtime States
             builder.Services.AddSingleton<ImportState>();
-            builder.Services.AddSingleton<UIState>();
-            builder.Services.AddScoped<SearchState>();
+            builder.Services.AddSingleton<AppPreferencesState>();
+            builder.Services.AddSingleton<TransientUIState>();
+            builder.Services.AddSingleton<SearchFilterState>();
+            builder.Services.AddSingleton<NavigationCacheState>();
             builder.Services.AddSingleton<ScraperActressState>();
             builder.Services.AddSingleton<ScraperMovieState>();
 
