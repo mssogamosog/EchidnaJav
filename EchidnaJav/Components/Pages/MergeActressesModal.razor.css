@@ -1,0 +1,76 @@
+﻿/* Modal Backdrop & Container */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content.large {
+    background-color: var(--surface);
+    border-radius: 12px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.modal-content p {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+}
+
+/* Responsive Grid for the reused ActressCards */
+.merge-grid {
+    display: grid;
+    /* Adapts to screen size, ensuring cards don't get too squished */
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Action Buttons Footer */
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+}
+.modal-content.large {
+    background-color: var(--surface);
+    border-radius: 12px;
+    padding: 1.5rem; /* Reduced padding */
+    width: 80%; /* Slightly smaller width */
+    max-width: 700px; /* Reduced max-width for a more compact feel */
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.merge-grid {
+    display: grid;
+    /* Reduced minmax from 220px to 180px to make cards smaller */
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem; /* Smaller gap */
+    margin-bottom: 1rem;
+}

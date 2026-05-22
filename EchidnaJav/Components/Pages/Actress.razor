@@ -3,6 +3,7 @@
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
+@using EchidnaJav.Core.Infrastructure.Helpers
 @inject IActressRepositoryService Repo
 @inject IImageService ImageService
 @inject NavigationManager Nav
@@ -51,6 +52,8 @@
 
             <div class="info-main">
                 <div class="info-grid">
+                    <div>Age:</div>
+                    <div>@actress.GetCurrentAgeDisplay()</div>
                     <div>Born:</div>
                     <div>@(actress.DobYear > 0 ? $"{actress.DobYear}-{actress.DobMonth:D2}-{actress.DobDay:D2}" : "Unknown")</div>
 

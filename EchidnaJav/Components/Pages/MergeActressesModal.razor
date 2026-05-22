@@ -1,0 +1,59 @@
+﻿@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Infrastructure.Helpers
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop" @onclick="Close">
+        <div class="modal-content large" @onclick:stopPropagation>
+            <h2>Merge Actresses</h2>
+            <p>Select the <strong>primary profile</strong> you want to keep. The other profiles will be merged into it and deleted.</p>
+
+            <div class="merge-grid">
+                @foreach (var actress in ActressesToMerge)
+                {
+                    <ActressCard Actress="@actress"
+                                 ShowExtendedDetailsOverlay="true"
+                                 IsSelected="@(TargetActressName == actress.Name)"
+                                 OnActressClicked="() => TargetActressName = actress.Name" />
+                }
+            </div>
+
+            <div class="modal-actions mt-4">
+                <button class="btn btn-secondary" @onclick="Close">Cancel</button>
+                <button class="btn btn-primary" disabled="@string.IsNullOrEmpty(TargetActressName)" @onclick="Confirm">
+                    Confirm Merge
+                </button>
+            </div>
+        </div>
+    </div>
+}
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public List<ActressDetailsDto> ActressesToMerge { get; set; } = new();
+    [Parameter] public EventCallback<string> OnMergeConfirmed { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string? TargetActressName;
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && string.IsNullOrEmpty(TargetActressName) && ActressesToMerge.Any())
+        {
+            TargetActressName = ActressesToMerge.OrderByDescending(a => a.MovieCount).First().Name;
+        }
+    }
+
+    private async Task Confirm()
+    {
+        if (!string.IsNullOrEmpty(TargetActressName))
+        {
+            await OnMergeConfirmed.InvokeAsync(TargetActressName);
+        }
+    }
+
+    private async Task Close()
+    {
+        TargetActressName = null;
+        await OnClose.InvokeAsync();
+    }
+}

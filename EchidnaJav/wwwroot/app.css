@@ -208,6 +208,26 @@ input, textarea, select, .form-control {
     box-shadow: var(--shadow);
 }
 
+/* Consolidated Base Transitions for all Cards */
+.movie-card, 
+.actress-card, 
+.movie-mini-card {
+    transition: transform 0.25s ease, 
+                box-shadow 0.25s ease, 
+                border-color 0.25s ease, 
+                background-color 0.25s ease, 
+                color 0.25s ease !important;
+}
+
+/* Consolidated Hover State */
+.movie-card:hover, 
+.actress-card:hover, 
+.movie-mini-card:hover {
+    transform: translateY(-4px) !important; 
+    border-color: var(--primary) !important;
+    box-shadow: 0 6px 16px var(--focus) !important; 
+    background: var(--surface) !important; 
+}
 /* ---------- SMOOTH TRANSITIONS ---------- */
 * {
     transition: background-color .25s ease, color .25s ease, border-color .25s ease;
@@ -359,4 +379,76 @@ input, textarea, select, .form-control {
 
 .btn-minimal.primary-action:hover {
     background: var(--focus);
+}
+/* =========================================
+   GLOBAL CONTEXT MENU STYLES
+   ========================================= */
+.context-menu-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9998;
+}
+
+.custom-context-menu {
+    position: fixed;
+    z-index: 9999;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    min-width: 170px;
+    width: max-content;
+    padding: 4px 0;
+    color: var(--text);
+    max-height: calc(100vh - 30px); 
+    overflow-y: auto;
+}
+
+.custom-context-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-context-menu::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 10px;
+}
+
+.menu-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.menu-item {
+    padding: 6px 14px;            
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;                     
+    font-size: 13px;              
+    transition: background-color 0.15s ease;
+}
+
+.menu-item:hover {
+    background-color: var(--surface-2);
+    color: var(--primary);
+}
+
+.menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.menu-separator {
+    height: 1px;
+    background-color: var(--border);
+    margin: 4px 0;                
+}
+
+.menu-icon {
+    font-size: 14px;              
+    opacity: 0.8;
 }

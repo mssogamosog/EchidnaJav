@@ -344,5 +344,24 @@ namespace EchidnaJav.Scraper
 
             return rawId;
         }
+        public override Task ScrapeFromUrlAsync(string url, LanguageType language, string movieId)
+        {
+            m_parsingSuccessful = false;
+            SearchNotFound = false;
+            ImageSource = string.Empty;
+            Metadata = new MovieMetadata(movieId);
+            m_language = language;
+
+            if (!IsLanguageSupported())
+            {
+                return Task.CompletedTask;
+            }
+
+            _queryDigits = GetJavtifulQuery(movieId);
+            _currentReferrer = "https://javtiful.com/";
+            _targetDetailUrl = url;
+
+            return ScrapeWebsiteAsync(url);
+        }
     }
 }

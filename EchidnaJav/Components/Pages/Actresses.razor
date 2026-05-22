@@ -11,34 +11,48 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div class="actresses-page-container">
-    <h2 class="page-title">Actresses</h2>
+<div class="actresses-page-container" @onclick="ClearSelection">
+    <div class="actresses-grid">
+        @for (int i = 0; i < actressList.Count; i++)
+        {
+            var index = i;
+            var actress = actressList[i];
 
-    @if (actressList == null)
-    {
-        <div class="loading-spinner">Loading Actresses...</div>
-    }
-    else if (!actressList.Any())
-    {
-        <div class="empty-state">No actresses found.</div>
-    }
-    else
-    {
-        <div class="actresses-grid">
-            @foreach (var actress in actressList)
-            {
-                <ActressCard Actress="@actress"
-                             HighlightText="@GetHighlightText(actress)"
-                             OnActressClicked="() => GoToActress(actress.Name)" />
-            }
-        </div>
-    }
+            <ActressCard Actress="@actress"
+                         HighlightText="@GetHighlightText(actress)"
+                         IsSelected="_selectedActressNames.Contains(actress.Name)"
+                         OnActressClicked="(e) => HandleActressClick(actress, index, e)"
+                         OnActressRightClicked="(e) => HandleRightClick(actress, index, e)" />
+        }
+    </div>
+
+    <ActressContextMenu IsVisible="_isMenuVisible"
+                        X="_menuX" Y="_menuY"
+                        SelectedActresses="GetSelectedActressObjects()"
+                        OnMergeClicked="OpenMergeModal"
+                        OnClose="() => _isMenuVisible = false" />
+
+    <MergeActressesModal IsVisible="_isModalVisible"
+                         ActressesToMerge="GetSelectedActressObjects()"
+                         OnClose="() => _isModalVisible = false"
+                         OnMergeConfirmed="ExecuteMerge" />
 </div>
 @code {
     private List<ActressDetailsDto>? actressList;
     private IDisposable? _locationRegistration;
     private const string PageKey = "Actresses";
+    private bool _isDisposed = false;
+    // Selection state
+    private HashSet<string> _selectedActressNames = new();
+    private int _lastSelectedIndex = -1;
 
+    // Context Menu state
+    private bool _isMenuVisible = false;
+    private double _menuX;
+    private double _menuY;
+
+    // Modal state
+    private bool _isModalVisible = false;
     protected override async Task OnInitializedAsync()
     {
         UI.SetFooterText("Actresses");
@@ -50,8 +64,14 @@
 
     private async void ReloadActresses()
     {
+        if (_isDisposed) return; 
+
         await FetchData();
-        await InvokeAsync(StateHasChanged);
+
+        if (!_isDisposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task FetchData()
@@ -107,7 +127,84 @@
             // Ignore JS interop errors during rapid navigation
         }
     }
+    private async Task HandleActressClick(ActressDetailsDto actress, int index, MouseEventArgs e)
+    {
+        _isMenuVisible = false;
 
+        if (e.CtrlKey || e.MetaKey)
+        {
+            if (_selectedActressNames.Contains(actress.Name)) _selectedActressNames.Remove(actress.Name);
+            else _selectedActressNames.Add(actress.Name);
+            _lastSelectedIndex = index;
+            StateHasChanged();
+        }
+        else if (e.ShiftKey && _lastSelectedIndex != -1 && actressList != null)
+        {
+            _selectedActressNames.Clear();
+            var start = Math.Min(_lastSelectedIndex, index);
+            var end = Math.Max(_lastSelectedIndex, index);
+            for (int i = start; i <= end && i < actressList.Count; i++)
+            {
+                _selectedActressNames.Add(actressList[i].Name);
+            }
+            StateHasChanged();
+        }
+        else
+        {
+            Nav.NavigateTo($"/actress/{Uri.EscapeDataString(actress.Name)}");
+        }
+    }
+
+    private void HandleRightClick(ActressDetailsDto actress, int index, MouseEventArgs e)
+    {
+        if (!_selectedActressNames.Contains(actress.Name))
+        {
+            _selectedActressNames.Clear();
+            _selectedActressNames.Add(actress.Name);
+            _lastSelectedIndex = index;
+            StateHasChanged();
+        }
+
+        _menuX = e.ClientX;
+        _menuY = e.ClientY;
+        _isMenuVisible = true;
+    }
+
+    private void ClearSelection()
+    {
+        if (_selectedActressNames.Any() || _isMenuVisible)
+        {
+            _selectedActressNames.Clear();
+            _isMenuVisible = false;
+            StateHasChanged();
+        }
+    }
+
+    private List<ActressDetailsDto> GetSelectedActressObjects()
+    {
+        if (actressList == null) return new List<ActressDetailsDto>();
+        return actressList.Where(a => _selectedActressNames.Contains(a.Name)).ToList();
+    }
+
+    private void OpenMergeModal()
+    {
+        _isMenuVisible = false;
+        _isModalVisible = true;
+    }
+
+    private async Task ExecuteMerge(string targetActressName)
+    {
+        _isModalVisible = false;
+
+        var sourceNames = _selectedActressNames.Where(n => n != targetActressName).ToList();
+
+        // Execute the database merge
+        await Repo.MergeActressesAsync(targetActressName, sourceNames);
+
+        // Refresh the list immediately to show the updated state
+        ClearSelection();
+        ReloadActresses();
+    }
     private void GoToActress(string name)
     {
         Nav.NavigateTo($"/actress/{Uri.EscapeDataString(name)}");
@@ -115,7 +212,7 @@
 
     public void Dispose()
     {
-        // Clean up the event listener to prevent memory leaks
+        _isDisposed = true;
         _locationRegistration?.Dispose();
     }
 }

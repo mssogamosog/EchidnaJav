@@ -79,7 +79,7 @@
     private double _menuX;
     private double _menuY;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         AppPrefs.OnChange += Refresh;
         SearchFilter.OnSearchChanged += HandleSearchChanged;
@@ -336,7 +336,6 @@
         AppPrefs.OnChange -= Refresh;
         SearchFilter.OnSearchChanged -= HandleSearchChanged;
         _locationRegistration?.Dispose();
-
         if (_clickOutsideDotNetRef != null)
         {
             try { await JS.InvokeVoidAsync("clickOutsideHandler.removeEvent", _workspaceContainer); } catch { }

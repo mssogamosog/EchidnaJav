@@ -21,7 +21,7 @@ namespace EchidnaJav.Core.Infrastructure.Helpers
             if (month <= 0 || day <= 0)
             {
                 int approximateAge = today.Year - year;
-                return approximateAge > 0 ? $"{approximateAge} years old (approx.)" : "Age Unknown";
+                return approximateAge > 0 ? $"{approximateAge}" : "Age Unknown";
             }
 
             
@@ -35,12 +35,12 @@ namespace EchidnaJav.Core.Infrastructure.Helpers
                     age--;
                 }
 
-                return age >= 0 ? $"{age} years old" : "Age Unknown";
+                return age >= 0 ? $"{age}" : "Age Unknown";
             }
             catch (ArgumentOutOfRangeException)
             {
                 int approximateAge = today.Year - year;
-                return approximateAge > 0 ? $"{approximateAge} years old" : "Age Unknown";
+                return approximateAge > 0 ? $"{approximateAge}" : "Age Unknown";
             }
         }
     }

@@ -90,14 +90,9 @@
     border-radius: 8px;
     border: 1px solid var(--border);
     cursor: pointer;
-    transition: all 0.2s ease;
 }
 
-    .movie-mini-card:hover {
-        border-color: var(--primary);
-        transform: translateY(-3px);
-        background: var(--surface);
-    }
+    
 
     .movie-mini-card .movie-id {
         color: var(--primary);

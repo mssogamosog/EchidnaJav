@@ -135,7 +135,26 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     using var db = _dbFactory.CreateDbContext();
 
                     var genreCache = await db.Genres.AsNoTracking().ToDictionaryAsync(g => g.Name.ToLower(), ct);
-                    var actressCache = await db.Actresses.AsNoTracking().ToDictionaryAsync(a => a.Name.ToLower(), ct);
+                    var allActresses = await db.Actresses
+                        .Include(a => a.AltNames)
+                        .AsNoTracking()
+                        .ToListAsync(ct);
+
+                    var actressCache = allActresses
+                        .SelectMany(a =>
+                            (a.AltNames?.Select(alt => alt.Name) ?? Enumerable.Empty<string>())
+                            .Append(a.Name) 
+                            .Where(name => !string.IsNullOrWhiteSpace(name))
+                            .Select(name => new KeyValuePair<string, Actress>(name, a))
+                        )
+                        // 2. Group by the name (case-insensitive) to resolve any duplicate keys safely
+                        .GroupBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+                        // 3. Convert to dictionary, taking the first mapped actress for each name
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.First().Value,
+                            StringComparer.OrdinalIgnoreCase
+                        );
                     await foreach (var movie in channel.Reader.ReadAllAsync(ct))
                     {
                         
@@ -158,14 +177,18 @@ namespace EchidnaJav.Core.Infrastructure.Services
                                     string actorName = ma.Actress?.Name;
                                     if (string.IsNullOrWhiteSpace(actorName)) continue;
 
-                                    string actorNameLower = actorName.ToLower();
+                                    if (actressCache.TryGetValue(actorName, out var cachedActress))
+                                    {
+                                        ma.Actress.Name = cachedActress.Name;
+                                        continue;
+                                    }
 
-                                    if (actressCache.ContainsKey(actorNameLower) || newlyScrapedActresses.ContainsKey(actorName))
+                                    if (newlyScrapedActresses.ContainsKey(actorName))
                                         continue;
 
                                     // 1. Create a blank "shell" actress to satisfy the database relationship
                                     var shellActress = new Actress { Name = actorName };
-                                    actressCache[actorNameLower] = shellActress;
+                                    actressCache[actorName] = shellActress;
                                     newlyScrapedActresses.Add(actorName, true);
 
                                     // 2. Toss the name over the wall to the background worker to deal with later!

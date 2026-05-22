@@ -4,19 +4,12 @@
     border-radius: 18px;
     text-align: center;
     cursor: pointer;
-    overflow: hidden; /* Ensures the image doesn't break out of the rounded corners */
-    transition: transform 0.25s ease, background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
-    
+    overflow: hidden; 
     display: flex;
     flex-direction: column;
     height: 100%;
 }
 
-.actress-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
-    border-color: var(--primary);
-}
 
 .portrait-container {
     width: 100%;
@@ -26,6 +19,7 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    position: relative;
 }
 
 .portrait {
@@ -76,4 +70,40 @@
     color: var(--text-muted);
     font-weight: 600;
     margin: 0;
+}
+.actress-card.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary);
+}
+.details-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.75); /* Dark semi-transparent background */
+    backdrop-filter: blur(4px);      /* Gives it a nice frosted glass effect */
+    color: #ffffff;
+    padding: 0.75rem;
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    text-align: left;
+}
+
+.overlay-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    padding-bottom: 2px;
+}
+
+.overlay-stat:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.stat-label {
+    color: #adb5bd; /* Lighter gray for the label */
 }
