@@ -85,7 +85,8 @@ namespace EchidnaJav.Scraper
             }
 
             // 2. Extract Cover Image via CSS Selector
-            var coverImg = document.QuerySelector($"img[alt^='{Metadata.UniqueID.Value}' i]");
+            var coverImg = document.QuerySelector("#poster-container img");
+
             if (coverImg != null)
             {
                 string srcAttr = coverImg.GetAttribute("src");
@@ -96,10 +97,12 @@ namespace EchidnaJav.Scraper
             }
 
             // 3. Extract Validation ID (Ensure we landed on the right page)
-            var dvdIdLabel = document.QuerySelectorAll("div").FirstOrDefault(e => e.TextContent.Trim() == "DVD ID:");
-            if (dvdIdLabel?.NextElementSibling != null)
+            var dvdIdElement = document.QuerySelectorAll("p.mb-1").FirstOrDefault(e => e.TextContent.Contains("DVD ID:"));
+
+            if (dvdIdElement != null)
             {
-                string scrapedId = dvdIdLabel.NextElementSibling.TextContent.Trim();
+                string scrapedId = dvdIdElement.TextContent.Replace("DVD ID:", "").Trim();
+
                 if (!_movieIdService.MovieIDEquals(Metadata.UniqueID.Value, scrapedId))
                 {
                     // Wrong page landed, abort

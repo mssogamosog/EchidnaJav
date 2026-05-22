@@ -9,6 +9,6 @@ namespace EchidnaJav.Scraper.Interfaces
     {
         MovieMetadata Metadata { get; }
         Task ScrapeAsync(string movieID, LanguageType language);
-        Task ScrapeFromUrlAsync(string url, LanguageType language);
+        Task ScrapeFromUrlAsync(string url, LanguageType language, string movieId);
     }
 }

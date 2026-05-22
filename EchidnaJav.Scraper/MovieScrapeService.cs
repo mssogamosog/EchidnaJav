@@ -80,7 +80,7 @@ namespace EchidnaJav.Scraper
                 return new
                 {
                     Scraper = scraper,
-                    Task = scraper.ScrapeFromUrlAsync(req.Url, english)
+                    Task = scraper.ScrapeFromUrlAsync(req.Url, english, movieId)
                 };
             }).ToList();
 
