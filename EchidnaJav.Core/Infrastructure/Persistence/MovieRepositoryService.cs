@@ -376,7 +376,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
         #region File & Metadata Operations
 
-        // 🔥 REFACTOR: Centralized directory resolution
         private string? GetTargetDirectory(Movie movie)
         {
             var firstValidFile = movie.Files?.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FilePath) && File.Exists(f.FilePath));
@@ -388,7 +387,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             return null;
         }
 
-        // 🔥 REFACTOR: Centralized NFO and Cache generation orchestrator
         private async Task FinalizeMetadataUpdateAsync(Movie movie, MovieMetadata scrapedDto, string targetCoverPath, string targetDirectory)
         {
             var existingFiles = movie.Files.Where(f => !string.IsNullOrWhiteSpace(f.FilePath)).Select(f => f.FilePath!).ToList();

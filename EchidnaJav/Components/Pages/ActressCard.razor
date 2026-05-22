@@ -1,18 +1,22 @@
 ﻿@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Helpers
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
 @inject IImageService ImageService
 @inject TransientUIState UI
 @implements IAsyncDisposable
 
-<div class="actress-card"
+<div class="actress-card @(IsSelected ? "selected" : "")"
      style="cursor: pointer;"
      @ref="_element"
      @onmouseenter='() => UI.SetFooterText(Actress.Name)'
      @onmouseleave='() => UI.SetFooterText(null)'
      @onclick="OnClick"
-     @onclick:stopPropagation="true">
+     @onclick:stopPropagation="true"
+     @oncontextmenu="OnRightClick"
+     @oncontextmenu:preventDefault="true"
+     @oncontextmenu:stopPropagation="true">
 
     <div class="portrait-container">
         @if (_currentImage != null)
@@ -23,6 +27,29 @@
         {
             <div class="portrait-placeholder">
                 <span class="bi bi-person-fill placeholder-icon"></span>
+            </div>
+        }
+
+        @if (ShowExtendedDetailsOverlay)
+        {
+            <div class="details-overlay">
+                <div class="overlay-stat"><span class="stat-label">Movies:</span> @Actress.MovieCount</div>
+                <div class="overlay-stat"><span class="stat-label">Age:</span> @Actress.GetCurrentAgeDisplay()</div>
+
+                @if (Actress.Height.GetValueOrDefault(0) > 0)
+                {
+                    <div class="overlay-stat"><span class="stat-label">Height:</span> @Actress.Height cm</div>
+                }
+
+                @if (!string.IsNullOrEmpty(Actress.Cup))
+                {
+                    <div class="overlay-stat"><span class="stat-label">Cup:</span> @Actress.Cup</div>
+
+                    @if (Actress.Bust.GetValueOrDefault(0) > 0)
+                    {
+                        <div class="overlay-stat"><span class="stat-label">BWH:</span> @Actress.Bust-@Actress.Waist-@Actress.Hips</div>
+                    }
+                }
             </div>
         }
     </div>
@@ -44,6 +71,9 @@
     [Parameter, EditorRequired] public ActressDetailsDto Actress { get; set; } = default!;
     [Parameter] public EventCallback<MouseEventArgs> OnActressClicked { get; set; }
     [Parameter] public string? HighlightText { get; set; }
+    [Parameter] public bool IsSelected { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnActressRightClicked { get; set; }
+    [Parameter] public bool ShowExtendedDetailsOverlay { get; set; } = false;
 
     private string? _currentImage;
     private ElementReference _element;
@@ -51,11 +81,10 @@
     private CancellationTokenSource? _cts;
     private string? _currentRequestKey;
     private bool _isVisible;
-
-    // Depending on your image service generation, you can change this to ImageType.Full if needed
     private ImageType TargetImageType => ImageType.Full;
 
     private async Task OnClick(MouseEventArgs e) => await OnActressClicked.InvokeAsync(e);
+    private async Task OnRightClick(MouseEventArgs e) => await OnActressRightClicked.InvokeAsync(e);
 
     protected override void OnInitialized()
     {

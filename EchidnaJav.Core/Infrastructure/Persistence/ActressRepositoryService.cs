@@ -1,5 +1,7 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
+using EchidnaJav.Core.Infrastructure.Helpers;
+using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,15 +16,20 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<ActressData?> GetActressDataForScraperAsync(string name);
         Task<List<string>> SearchActressNamesAsync(string query);
         Task<List<ActressDetailsDto>> GetAllActressesAsync(string? searchText, SortActressesBy sortBy);
+        Task MergeActressesAsync(string targetName, List<string> sourceNames);
     }
 
     public class ActressRepositoryService : IActressRepositoryService
     {
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
+        private readonly INfoGeneratorService _nfoGenerator;
 
-        public ActressRepositoryService(IDbContextFactory<AppDbContext> dbFactory)
+        public ActressRepositoryService(
+            IDbContextFactory<AppDbContext> dbFactory,
+            INfoGeneratorService nfoGenerator)
         {
             _dbFactory = dbFactory;
+            _nfoGenerator = nfoGenerator;
         }
 
         public async Task SaveScrapedActressAsync(ActressData scrapedData)
@@ -268,15 +275,24 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
             var query = db.Actresses
                 .AsNoTracking()
-                .Where(a => a.Name != null);
-
-            // 1. Apply Search
+                .Where(a => a.Name != null)
+                .AsQueryable();
+            // 1. Apply Multi-Token Search
             if (!string.IsNullOrWhiteSpace(searchText))
             {
-                var lowerSearch = searchText.ToLower();
-                query = query.Where(a => a.Name!.ToLower().Contains(lowerSearch) ||
-                                        (a.JapaneseName != null && a.JapaneseName.ToLower().Contains(lowerSearch)));
+                var tokens = searchText
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => $"%{t.Trim()}%")
+                    .ToArray();
+
+                query = query.Where(a =>
+                    tokens.Any(pattern =>
+                        EF.Functions.Like(a.Name!, pattern) ||
+                        (a.JapaneseName != null &&
+                         EF.Functions.Like(a.JapaneseName, pattern))
+                    ));
             }
+            
             int currentMonth = DateTime.Today.Month;
             int currentDay = DateTime.Today.Day;
             // 2. Apply Sorting (pushing empty/zero values to the bottom)
@@ -353,6 +369,128 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             });
 
             return await projectedQuery.ToListAsync();
+        }
+        public async Task MergeActressesAsync(string targetName, List<string> sourceNames)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            // 1. Fetch the target with all relationships
+            var target = await db.Actresses
+                .Include(a => a.Images)
+                .Include(a => a.AltNames)
+                .Include(a => a.MovieActresses)
+                .FirstOrDefaultAsync(a => a.Name == targetName);
+
+            if (target == null) return;
+
+            // 2. Fetch all sources
+            var sources = await db.Actresses
+                .Include(a => a.Images)
+                .Include(a => a.AltNames)
+                .Include(a => a.MovieActresses)
+                .Where(a => sourceNames.Contains(a.Name))
+                .ToListAsync();
+
+            target.AltNames ??= new List<ActressAltName>();
+            target.Images ??= new List<ActressImage>();
+            target.MovieActresses ??= new List<MovieActress>();
+
+            int nextImageIndex = target.Images.Any() ? target.Images.Max(i => i.Index) + 1 : 0;
+
+            var affectedMovieIds = new HashSet<string>();
+
+            foreach (var source in sources)
+            {
+                // 3. Keep the old name as an AltName
+                if (!target.AltNames.Any(an => an.Name == source.Name) && source.Name != target.Name)
+                    target.AltNames.Add(new ActressAltName { Name = source.Name });
+
+                if (source.AltNames != null)
+                {
+                    foreach (var alt in source.AltNames)
+                    {
+                        if (!target.AltNames.Any(an => an.Name == alt.Name) && alt.Name != target.Name)
+                            target.AltNames.Add(new ActressAltName { Name = alt.Name });
+                    }
+                }
+
+                // 4. Move Images over
+                if (source.Images != null)
+                {
+                    foreach (var img in source.Images)
+                    {
+                        if (!target.Images.Any(ti => ti.Filepath == img.Filepath))
+                            target.Images.Add(new ActressImage { Filepath = img.Filepath, Index = nextImageIndex++ });
+                    }
+                }
+
+                // 5. Reassign Movies
+                if (source.MovieActresses != null)
+                {
+                    foreach (var ma in source.MovieActresses.ToList())
+                    {
+                        affectedMovieIds.Add(ma.MovieId);
+                        bool existsInTarget = target.MovieActresses.Any(tma => tma.MovieId == ma.MovieId);
+
+                        if (!existsInTarget)
+                        {
+                            var newJoin = new MovieActress
+                            {
+                                MovieId = ma.MovieId,
+                                Actress = target,
+                                Order = ma.Order
+                            };
+                            target.MovieActresses.Add(newJoin);
+                        }
+
+                        db.MovieActresses.Remove(ma);
+                    }
+                }
+
+                // 6. Fill in missing metadata gracefully
+                target.JapaneseName = string.IsNullOrWhiteSpace(target.JapaneseName) ? source.JapaneseName : target.JapaneseName;
+                target.DobYear = (target.DobYear == null || target.DobYear == 0) ? source.DobYear : target.DobYear;
+                target.DobMonth = (target.DobMonth == null || target.DobMonth == 0) ? source.DobMonth : target.DobMonth;
+                target.DobDay = (target.DobDay == null || target.DobDay == 0) ? source.DobDay : target.DobDay;
+                target.Height = (target.Height == null || target.Height == 0) ? source.Height : target.Height;
+                target.Cup = string.IsNullOrWhiteSpace(target.Cup) ? source.Cup : target.Cup;
+                target.Bust = (target.Bust == null || target.Bust == 0) ? source.Bust : target.Bust;
+                target.Waist = (target.Waist == null || target.Waist == 0) ? source.Waist : target.Waist;
+                target.Hips = (target.Hips == null || target.Hips == 0) ? source.Hips : target.Hips;
+
+                // 7. Remove the merged entity
+                db.Actresses.Remove(source);
+            }
+
+            await db.SaveChangesAsync();
+
+            if (affectedMovieIds.Any())
+            {
+                // Need to grab the files to figure out where the NFO goes
+                var affectedMovies = await db.Movies
+                    .Include(m => m.Files)
+                    .Where(m => affectedMovieIds.Contains(m.Id))
+                    .ToListAsync();
+
+                foreach (var movie in affectedMovies)
+                {
+                    var targetDir = GetTargetDirectory(movie);
+                    if (!string.IsNullOrWhiteSpace(targetDir) && Directory.Exists(targetDir))
+                    {
+                        await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDir);
+                    }
+                }
+            }
+        }
+        private string? GetTargetDirectory(Movie movie)
+        {
+            var firstValidFile = movie.Files?.FirstOrDefault(f => !string.IsNullOrWhiteSpace(f.FilePath) && File.Exists(f.FilePath));
+            if (firstValidFile != null) return Path.GetDirectoryName(firstValidFile.FilePath);
+
+            if (!string.IsNullOrWhiteSpace(movie.PrimaryImagePath) && File.Exists(movie.PrimaryImagePath))
+                return Path.GetDirectoryName(movie.PrimaryImagePath);
+
+            return null;
         }
     }
 }

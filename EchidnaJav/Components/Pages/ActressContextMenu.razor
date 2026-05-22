@@ -1,0 +1,45 @@
+﻿@using EchidnaJav.Core.Domain.DTOs
+
+@if (IsVisible)
+{
+    <div class="context-menu-backdrop"
+         @onclick="CloseMenu"
+         @oncontextmenu="CloseMenu"
+         @oncontextmenu:preventDefault="true"></div>
+
+    <div class="custom-context-menu" style="top: @(Y)px; left: @(X)px;" @onclick:stopPropagation>
+        <ul class="menu-list">
+            @if (SelectedActresses.Count >= 2)
+            {
+                <li class="menu-item" @onclick="HandleMerge">
+                    <span class="bi bi-people-fill menu-icon"></span> Merge Actresses...
+                </li>
+            }
+            else
+            {
+                <li class="menu-item" style="opacity: 0.5; cursor: not-allowed;" title="Select at least two actresses using Ctrl+Click or Shift+Click">
+                    <span class="bi bi-info-circle menu-icon"></span> Select 2+ to merge
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public double X { get; set; }
+    [Parameter] public double Y { get; set; }
+    [Parameter] public List<ActressDetailsDto> SelectedActresses { get; set; } = new();
+    [Parameter] public EventCallback OnMergeClicked { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; } // Required to close when clicking the backdrop
+
+    private async Task HandleMerge()
+    {
+        await OnMergeClicked.InvokeAsync();
+    }
+
+    private async Task CloseMenu()
+    {
+        await OnClose.InvokeAsync();
+    }
+}
