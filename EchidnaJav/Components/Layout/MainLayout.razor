@@ -28,6 +28,16 @@
                    placeholder="Search movies..."
                    value="@_searchInput"
                    @oninput="HandleSearchInput" />
+            <button class="nav-btn" @onclick="ToggleTheme" title="@(isDarkMode ? "Light Mode" : "Dark Mode")" style="font-size: 1.1rem;">
+                @if (isDarkMode)
+                {
+                    <span>☀️</span>
+                }
+                else
+                {
+                    <span>🌙</span>
+                }
+            </button>
         </header>
 
         @if (menuOpen && isMobile)
@@ -134,7 +144,7 @@
                     @Body
                 </main>
 
-                @if (!IsMoviePage)
+                @if (!(IsMoviePage || IsActressesListPage))
                 {
                     <div class="size-slider-shell">
                         <div class="size-slider">
@@ -176,7 +186,6 @@
 
 @code {
     private bool IsMoviePage => NavManager.ToBaseRelativePath(NavManager.Uri).StartsWith("movie/", StringComparison.OrdinalIgnoreCase);
-
     private bool IsActressPage => NavManager.ToBaseRelativePath(NavManager.Uri).StartsWith("actress/", StringComparison.OrdinalIgnoreCase);
     private bool IsActressesListPage => NavManager.ToBaseRelativePath(NavManager.Uri).Equals("actresses", StringComparison.OrdinalIgnoreCase);
 
@@ -202,6 +211,7 @@
 
     bool menuOpen = true;
     bool isMobile = false;
+    private bool isDarkMode;
 
     void ToggleMenu() => menuOpen = !menuOpen;
     void CloseMenu() => menuOpen = false;
@@ -219,8 +229,27 @@
         _debounceTimer = new System.Timers.Timer(400);
         _debounceTimer.AutoReset = false;
         _debounceTimer.Elapsed += PerformSearch;
-    }
 
+    }
+    
+    private async Task ToggleTheme()
+    {
+        if (Microsoft.Maui.Controls.Application.Current != null)
+        {
+            isDarkMode = !isDarkMode;
+
+            Microsoft.Maui.Controls.Application.Current.UserAppTheme = isDarkMode
+                ? Microsoft.Maui.ApplicationModel.AppTheme.Dark
+                : Microsoft.Maui.ApplicationModel.AppTheme.Light;
+        }
+        await ApplyThemeToWebView();
+    }
+    private async Task ApplyThemeToWebView()
+    {
+        // Injects data-theme="dark" or data-theme="light" into the main HTML tag
+        var themeName = isDarkMode ? "dark" : "light";
+        await JS.InvokeVoidAsync("document.documentElement.setAttribute", "data-theme", themeName);
+    }
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         // Track the last viewed grid to allow next/previous on the Movie page
@@ -309,6 +338,9 @@
     {
         if (firstRender)
         {
+            var currentTheme = Microsoft.Maui.Controls.Application.Current?.RequestedTheme;
+            isDarkMode = currentTheme == Microsoft.Maui.ApplicationModel.AppTheme.Dark;
+            await ApplyThemeToWebView();
             objRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("registerResizeHandler", objRef);
             await JS.InvokeVoidAsync("registerGlobalKeyHandler", objRef);
@@ -319,6 +351,7 @@
             menuOpen = !isMobile;
 
             StateHasChanged();
+
         }
     }
 

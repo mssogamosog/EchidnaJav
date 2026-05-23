@@ -8,8 +8,9 @@
 @inject IImageService ImageService
 @inject NavigationManager Nav
 @inject TransientUIState UI
+@inject IJSRuntime JS
 
-<div class="actress-page-container">
+<div class="actress-page-container @(isEditing ? "editing-mode" : "")">
     @if (actress == null)
     {
         <div class="loading-spinner">Loading @Name...</div>
@@ -19,28 +20,45 @@
         <div class="actress-sidebar">
             
             <div class="title-area">
-                <h1 class="actress-name">@actress.Name</h1>
-                @if (!string.IsNullOrEmpty(actress.JapaneseName))
-                {
-                    <h4 class="actress-jp-name ">@actress.JapaneseName</h4>
-                }
+                <div class="title-info">
+                    @if (isEditing)
+                    {
+                        <input @bind="actress!.Name" class="form-control name-input" placeholder="Name" />
+                        <input @bind="actress!.JapaneseName" class="form-control" placeholder="Japanese Name" />
+                    }
+                    else
+                    {
+                        <h1 class="actress-name">@actress.Name</h1>
+                        @if (!string.IsNullOrEmpty(actress.JapaneseName))
+                        {
+                            <h4 class="actress-jp-name">@actress.JapaneseName</h4>
+                        }
+                    }
+                </div>
+
+                
             </div>
 
-            <div class="poster-container">
-                @if (!string.IsNullOrEmpty(actressImage))
+            <div class="poster-container" id="cover-drop-zone">
+                @if (!string.IsNullOrEmpty(actressImage) || _previewImageUrl != null)
                 {
                     <div class="carousel-wrapper">
-                        @if (actress.Images.Count > 1)
+                        @if (actress.Images.Count > 1 && !isEditing)
                         {
                             <button class="carousel-btn prev" @onclick="() => RotateImage(-1)">❮</button>
                         }
 
-                        <img src="@actressImage" class="poster-img" alt="@actress.Name" />
+                        <img src="@(_previewImageUrl ?? actressImage)" class="poster-img" alt="@actress.Name" />
 
-                        @if (actress.Images.Count > 1)
+                        @if (actress.Images.Count > 1 && !isEditing)
                         {
                             <button class="carousel-btn next" @onclick="() => RotateImage(1)">❯</button>
                             <div class="image-counter">@(currentIndex + 1) / @actress.Images.Count</div>
+                        }
+
+                        @if (isEditing && _previewImageUrl == null && actress.Images.Any())
+                        {
+                            <button class="btn btn-danger delete-cover-btn" @onclick="DeleteCurrentImage">🗑 Delete</button>
                         }
                     </div>
                 }
@@ -48,31 +66,95 @@
                 {
                     <div class="actor-img-placeholder large"></div>
                 }
-            </div>
 
+                @if (isEditing)
+                {
+                    <div class="image-drop-overlay" @onclick="PickImageNative">
+                        <span>Drop new photo here (or click)</span>
+                    </div>
+                }
+            </div>
             <div class="info-main">
                 <div class="info-grid">
                     <div>Age:</div>
                     <div>@actress.GetCurrentAgeDisplay()</div>
                     <div>Born:</div>
-                    <div>@(actress.DobYear > 0 ? $"{actress.DobYear}-{actress.DobMonth:D2}-{actress.DobDay:D2}" : "Unknown")</div>
+                    <div class="dob-row">
+                        @if (isEditing)
+                        {
+                            <input type="date" @bind="ActressDobProxy" class="form-control" style="width: 135px;" />
+                        }
+                        else
+                        {
+                            @(actress.DobYear > 0 ? $"{actress.DobYear}-{actress.DobMonth:D2}-{actress.DobDay:D2}" : "Unknown")
+                        }
+                    </div>
 
                     <div>Height:</div>
-                    <div>@(actress.Height > 0 ? $"{actress.Height} cm" : "Unknown")</div>
+                    <div class="measurements-row">
+                        @if (isEditing)
+                        {
+                            <input type="number" @bind="actress!.Height" class="form-control inline-input-md" /> <span>cm</span>
+                        }
+                        else
+                        {
+
+                            @(actress.Height > 0 ? $"{actress.Height} cm" : "Unknown")
+                        }
+                    </div>
 
                     <div>Measurements:</div>
-                    <div>
-                        B@(actress.Bust > 0 ? actress.Bust.ToString() : "?") -
-                        W@(actress.Waist > 0 ? actress.Waist.ToString() : "?") -
-                        H@(actress.Hips > 0 ? actress.Hips.ToString() : "?")
+                    <div class="measurements-row">
+                        @if (isEditing)
+                        {
+                            <span>B</span> <input type="number" @bind="actress!.Bust" class="form-control inline-input-sm" />
+                            <span>W</span> <input type="number" @bind="actress!.Waist" class="form-control inline-input-sm" />
+                            <span>H</span> <input type="number" @bind="actress!.Hips" class="form-control inline-input-sm" />
+                        }
+                        else
+                        {
+                            @($"B{(actress.Bust > 0 ? actress.Bust.ToString() : "?")} - W{(actress.Waist > 0 ? actress.Waist.ToString() : "?")} - H{(actress.Hips > 0 ? actress.Hips.ToString() : "?")}")
+                        }
                     </div>
 
                     <div>Cup Size:</div>
-                    <div>@(string.IsNullOrEmpty(actress.Cup) ? "Unknown" : actress.Cup)</div>
+                    <div class="measurements-row">
+                        @if (isEditing)
+                        {
+                            <input @bind="actress!.Cup" class="form-control inline-input-md" />
+                        }
+                        else
+                        {
+
+                            @(string.IsNullOrEmpty(actress.Cup) ? "Unknown" : actress.Cup)
+                        }
+                    </div>
 
                     <div>Blood Type:</div>
-                    <div>@(string.IsNullOrEmpty(actress.BloodType) ? "Unknown" : actress.BloodType)</div>
+                    <div class="measurements-row">
+                        @if (isEditing)
+                        {
+                            <input @bind="actress!.BloodType" class="form-control inline-input-md" />
+                        }
+                        else
+                        {
+
+                            @(string.IsNullOrEmpty(actress.BloodType) ? "Unknown" : actress.BloodType)
+                        }
+                    </div>
                 </div>
+                
+            </div>
+            <div class="edit-controls">
+                @if (isEditing)
+                {
+                    <button class="btn-minimal" @onclick="ToggleEditModeAsync">Cancel</button>
+                    <button class="btn-minimal primary-action" @onclick="SaveChanges">Save</button>
+                }
+                else
+                {
+                    <button class="btn-minimal" @onclick="ToggleEditModeAsync">Edit</button>
+                }
             </div>
         </div>
 
@@ -92,6 +174,12 @@
     private int currentIndex = 0;
     private ActressDetailsDto? actress;
     private string? actressImage;
+    private bool isEditing = false;
+    private byte[]? _pendingImageBytes = null;
+    private string? _pendingImageExtension = null;
+    private string? _previewImageUrl = null;
+    private List<string> _imagesToDelete = new();
+    private DotNetObjectReference<Actress>? _objRef;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -127,6 +215,160 @@
         if (actress != null && actress.Images.Any())
         {
             actressImage = await ImageService.GetImageAsync(actress.Images[currentIndex].Filepath, ImageType.Full);
+        }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            NativeFileDragDropHelper.OnFileDropped += HandleNativeFileDrop;
+        }
+    }
+
+    public void Dispose()
+    {
+        NativeFileDragDropHelper.OnFileDropped -= HandleNativeFileDrop;
+        _objRef?.Dispose();
+    }
+
+    private async Task ToggleEditModeAsync()
+    {
+        if (isEditing)
+        {
+            // Cancelled: Wipe draft data and reload original
+            _pendingImageBytes = null;
+            _pendingImageExtension = null;
+            _previewImageUrl = null;
+            _imagesToDelete.Clear();
+            await OnParametersSetAsync(); // Re-fetch from DB
+        }
+        isEditing = !isEditing;
+    }
+
+    private void DeleteCurrentImage()
+    {
+        if (actress != null && actress.Images.Any())
+        {
+            var imageToDelete = actress.Images[currentIndex];
+            _imagesToDelete.Add(imageToDelete.Filepath); // Keep track of what to delete in the DB
+            actress.Images.RemoveAt(currentIndex);
+
+            // Reset view
+            currentIndex = 0;
+            _ = LoadCurrentImage();
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (actress == null) return;
+
+        // TODO: Pass pending images to your DTO if your repository supports it.
+        // actress.NewCoverImageBytes = _pendingImageBytes;
+        // actress.NewCoverImageExtension = _pendingImageExtension;
+        // actress.ImagesToDelete = _imagesToDelete;
+
+        // 🔥 Call your repo to save:
+        // bool success = await Repo.UpdateActressDetailsAsync(actress);
+
+        // if (success) {
+        _pendingImageBytes = null;
+        _pendingImageExtension = null;
+        _previewImageUrl = null;
+        _imagesToDelete.Clear();
+        isEditing = false;
+
+        await OnParametersSetAsync(); // Refresh fresh data
+                                      // }
+    }
+
+    // --- Image Upload Logic ---
+    private async Task PickImageNative()
+    {
+        try
+        {
+            var customFileType = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+        {
+            { DevicePlatform.WinUI, new[] { ".jpg", ".jpeg", ".png", ".webp" } },
+            { DevicePlatform.MacCatalyst, new[] { "public.image" } }
+        });
+
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Select a new Photo",
+                FileTypes = customFileType
+            });
+
+            if (result != null)
+            {
+                using var stream = await result.OpenReadAsync();
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                _pendingImageBytes = ms.ToArray();
+                _pendingImageExtension = Path.GetExtension(result.FileName);
+
+                string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+                _previewImageUrl = $"data:{mimeType};base64,{Convert.ToBase64String(_pendingImageBytes)}";
+
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex) { Console.WriteLine(ex.Message); }
+    }
+
+    private async void HandleNativeFileDrop(string physicalFilePath)
+    {
+        if (!isEditing || string.IsNullOrWhiteSpace(physicalFilePath)) return;
+
+        try
+        {
+            _pendingImageBytes = await System.IO.File.ReadAllBytesAsync(physicalFilePath);
+            _pendingImageExtension = System.IO.Path.GetExtension(physicalFilePath);
+
+            var base64 = Convert.ToBase64String(_pendingImageBytes);
+            string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+            _previewImageUrl = $"data:{mimeType};base64,{base64}";
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex) { Console.WriteLine(ex.Message); }
+    }
+    private DateTime? ActressDobProxy
+    {
+        get
+        {
+            if (actress != null && actress.DobYear > 0 && actress.DobMonth > 0 && actress.DobDay > 0)
+            {
+                try
+                {
+                    return new DateTime(actress.DobYear.Value, actress.DobMonth.Value, actress.DobDay.Value);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            return null;
+        }
+        set
+        {
+            if (actress != null)
+            {
+                if (value.HasValue)
+                {
+                    actress.DobYear = value.Value.Year;
+                    actress.DobMonth = value.Value.Month;
+                    actress.DobDay = value.Value.Day;
+                }
+                else
+                {
+                    actress.DobYear = null;
+                    actress.DobMonth = null;
+                    actress.DobDay = null;
+                }
+            }
         }
     }
 }
