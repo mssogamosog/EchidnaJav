@@ -15,42 +15,36 @@
 
 <div class="app-shell">
 
+    <header class="header-bar">
+
+        <div class="logo">EchidnaJav</div>
+
+        <div class="page-title">Home</div>
+
+        <input class="search-box"
+               placeholder="Search movies..."
+               value="@_searchInput"
+               @oninput="HandleSearchInput" />
+        <button class="nav-btn" @onclick="ToggleTheme" title="@(isDarkMode ? "Light Mode" : "Dark Mode")" style="font-size: 1.1rem;">
+            @if (isDarkMode)
+            {
+                <span>☀️</span>
+            }
+            else
+            {
+                <span>🌙</span>
+            }
+        </button>
+    </header>
     <div class="main-shell">
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+        <div class="right-shell">
 
-        <header class="header-bar">
-            <button class="menu-btn" @onclick="ToggleMenu">☰</button>
-
-            <div class="logo">EchidnaJav</div>
-
-            <div class="page-title">Home</div>
-
-            <input class="search-box"
-                   placeholder="Search movies..."
-                   value="@_searchInput"
-                   @oninput="HandleSearchInput" />
-            <button class="nav-btn" @onclick="ToggleTheme" title="@(isDarkMode ? "Light Mode" : "Dark Mode")" style="font-size: 1.1rem;">
-                @if (isDarkMode)
-                {
-                    <span>☀️</span>
-                }
-                else
-                {
-                    <span>🌙</span>
-                }
-            </button>
-        </header>
-
-        @if (menuOpen && isMobile)
-        {
-            <div class="menu-backdrop" @onclick="CloseMenu"></div>
-        }
+       
 
         <div class="body-shell">
-
-            <aside class="sidebar @(menuOpen ? "open" : "closed")">
-                <NavMenu />
-            </aside>
-
             <div class="content-shell">
                 <div class="toolbar">
                     <div class="filters-left">
@@ -165,23 +159,25 @@
             <ScraperProgressWidget />
         </div>
 
-        <footer class="status-bar">
-            <div class="status-left">
-                @if (UI.SelectedMoviesCount > 0)
-                {
-                    <span>@UI.SelectedMoviesCount movie(s) selected</span>
-                }
-                else if (!string.IsNullOrEmpty(UI.FooterText))
-                {
-                    <span>@UI.FooterText</span>
-                }
-            </div>
-
-            <div class="status-right">
-                Displaying @NavCache.GetCache(NavCache.LastActiveListKey).Movies.Count of @SearchFilter.TotalDatabaseCount
-            </div>
-        </footer>
+        
+        </div>
     </div>
+    <footer class="status-bar">
+        <div class="status-left">
+            @if (UI.SelectedMoviesCount > 0)
+            {
+                <span>@UI.SelectedMoviesCount movie(s) selected</span>
+            }
+            else if (!string.IsNullOrEmpty(UI.FooterText))
+            {
+                <span>@UI.FooterText</span>
+            }
+        </div>
+
+        <div class="status-right">
+            Displaying @NavCache.GetCache(NavCache.LastActiveListKey).Movies.Count of @SearchFilter.TotalDatabaseCount
+        </div>
+    </footer>
 </div>
 
 @code {
@@ -213,8 +209,6 @@
     bool isMobile = false;
     private bool isDarkMode;
 
-    void ToggleMenu() => menuOpen = !menuOpen;
-    void CloseMenu() => menuOpen = false;
 
     protected override void OnInitialized()
     {
@@ -300,15 +294,16 @@
 
     private void PerformSearch(object? sender, System.Timers.ElapsedEventArgs e)
     {
-        InvokeAsync(() =>
+        InvokeAsync(async () =>
         {
-            SearchFilter.SetSearchText(_searchInput);
-
             var currentPath = NavManager.ToBaseRelativePath(NavManager.Uri);
+
             if (ShouldRedirectToHome(currentPath))
             {
                 NavManager.NavigateTo("/");
+                await Task.Delay(50);
             }
+            SearchFilter.SetSearchText(_searchInput);
 
             StateHasChanged();
         });
