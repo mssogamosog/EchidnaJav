@@ -9,6 +9,7 @@ public interface INavigationStateService
     bool CanGoForward { get; }
 
     event Action? StateChanged;
+    event Action? OnReloadRequested;
     void Dispose();
     void GoBack();
     void GoForward();
@@ -24,6 +25,7 @@ public class NavigationStateService : IDisposable, INavigationStateService
     public bool CanGoForward => _currentIndex < _history.Count - 1;
 
     public event Action? StateChanged;
+    public event Action? OnReloadRequested;
 
     public NavigationStateService(NavigationManager navManager)
     {
@@ -35,19 +37,16 @@ public class NavigationStateService : IDisposable, INavigationStateService
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        // 1. Ignore if this was triggered by our own GoBack/GoForward methods
         if (_currentIndex >= 0 && _currentIndex < _history.Count && _history[_currentIndex] == e.Location)
         {
             return;
         }
 
-        // 2. User clicked a real link: chop off any "forward" history to create a new branch
         if (_currentIndex < _history.Count - 1)
         {
             _history.RemoveRange(_currentIndex + 1, _history.Count - (_currentIndex + 1));
         }
 
-        // 🔥 3. THE MOVIE SLIDESHOW FIX
         bool isArrivingAtMovie = e.Location.Contains("/movie/", StringComparison.OrdinalIgnoreCase);
         bool isLeavingMovie = _history.Count > 0 && _history[_currentIndex].Contains("/movie/", StringComparison.OrdinalIgnoreCase);
 
@@ -84,7 +83,7 @@ public class NavigationStateService : IDisposable, INavigationStateService
         StateChanged?.Invoke();
     }
 
-    public void Reload() => _navManager.Refresh(forceReload: true);
+    public void Reload() => OnReloadRequested?.Invoke();
 
     public void Dispose()
     {

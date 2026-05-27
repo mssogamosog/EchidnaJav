@@ -4,6 +4,7 @@ using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -36,19 +37,22 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         private readonly IMovieScrapeService _scrapeService;
         private readonly INfoGeneratorService _nfoGenerator;
         private readonly IActressScrapeQueue _actressQueue;
+        private readonly ILogger<MovieRepositoryService> _logger;
 
         public MovieRepositoryService(
             IDbContextFactory<AppDbContext> dbFactory,
             IImageService imageService,
             IMovieScrapeService scrapeService,
             INfoGeneratorService nfoGenerator,
-            IActressScrapeQueue actressQueue)
+            IActressScrapeQueue actressQueue,
+            ILogger<MovieRepositoryService> logger)
         {
             _dbFactory = dbFactory;
             _imageService = imageService;
             _scrapeService = scrapeService;
             _nfoGenerator = nfoGenerator;
             _actressQueue = actressQueue;
+            _logger = logger;
         }
 
         #region Read Layer (Queries & Pagination)
@@ -353,7 +357,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     if (!hasImages) await _actressQueue.QueueActressAsync(cleanName);
                 }
 
-                var existingJoin = movie.MovieActresses.FirstOrDefault(ma => ma.Actress != null && ma.Actress.Name.Equals(cleanName, StringComparison.OrdinalIgnoreCase));
+                var existingJoin = movie.MovieActresses.FirstOrDefault(ma => ma.Actress == actress || (actress.Id != 0 && ma.ActressId == actress.Id));
 
                 if (existingJoin != null)
                 {

@@ -59,6 +59,8 @@ namespace EchidnaJav.Core.Infrastructure.Services
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
         {
             await Task.Yield();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct); 
+            var linkedToken = cts.Token;
             var newlyScrapedActresses = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var groups = await _localMediaScanner.GroupFilesByMovieAsync(rootPath);
 
@@ -228,6 +230,11 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     }
                 }
                 catch (OperationCanceledException) { /* Graceful exit */ }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Fatal error in import consumer task!");
+                    cts.Cancel();
+                }
             });
 
             // 🧵 Producers (parallel)
@@ -236,7 +243,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 await Parallel.ForEachAsync(groups, new ParallelOptions
                 {
                     MaxDegreeOfParallelism = Environment.ProcessorCount,
-                    CancellationToken = ct
+                    CancellationToken = linkedToken
                 },
                 async (group, token) =>
                 {

@@ -2,12 +2,14 @@
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
+@using EchidnaJav.Core.Infrastructure.Services
 @inject IMovieRepositoryService MovieRepo
 @inject AppPreferencesState AppPrefs
 @inject TransientUIState UI
 @inject SearchFilterState SearchFilter
 @inject NavigationCacheState NavCache
 @inject NavigationManager Nav
+@inject INavigationStateService NavState
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -84,10 +86,26 @@
         AppPrefs.OnChange += Refresh;
         SearchFilter.OnSearchChanged += HandleSearchChanged;
         _locationRegistration = Nav.RegisterLocationChangingHandler(OnLocationChanging);
-
+        NavState.OnReloadRequested += HandleReloadRequested;
         LoadFromCache();
     }
+    private void HandleReloadRequested()
+    {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
 
+        InvokeAsync(async () =>
+                {
+                    if (_disposed) return;
+
+                    NavCache.ResetCache(CurrentPageKey);
+                    Movies.Clear();
+                    ClearSelection();
+                    hasMore = true;
+                    isLoading = false;
+                    await LoadMore();
+                });
+    }
     protected override async Task OnParametersSetAsync()
     {
         var currentRelativePath = Nav.ToBaseRelativePath(Nav.Uri);
@@ -335,6 +353,7 @@
 
         AppPrefs.OnChange -= Refresh;
         SearchFilter.OnSearchChanged -= HandleSearchChanged;
+        NavState.OnReloadRequested -= HandleReloadRequested;
         _locationRegistration?.Dispose();
         if (_clickOutsideDotNetRef != null)
         {
