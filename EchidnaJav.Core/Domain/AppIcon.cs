@@ -1,4 +1,8 @@
-﻿namespace EchidnaJav.Core.Domain
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace EchidnaJav.Core.Domain
 {
     public enum AppIcon
     {
