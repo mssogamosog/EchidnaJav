@@ -75,3 +75,8 @@
     text-overflow: ellipsis;
     word-break: break-word;
 }
+/* Ensure the container acts as the anchor */
+.cover-container {
+    position: relative;
+}
+

@@ -1,22 +1,27 @@
-﻿@using EchidnaJav.Core.Domain.DTOs
+﻿@using EchidnaJav.Components.Common
+@using EchidnaJav.Core.Domain
+@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
+@using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
+@inject IMovieRepositoryService MoviesRepo
 @inject IImageService ImageService
 @inject TransientUIState UI
 @implements IAsyncDisposable
 
 
-<div class="movie-card @(IsSelected ? "selected" : "")" 
+<div class="movie-card @(IsSelected ? "selected" : "")"
      style="cursor: pointer;"
-     @ref="_element" 
+     @ref="_element"
      @onmouseenter='() => UI.SetFooterText(Movie.Title)'
      @onmouseleave='() => UI.SetFooterText(null)'
-     @onclick="OnClick" 
+     @onclick="OnClick"
      @onclick:stopPropagation="true"
      @oncontextmenu="OnRightClick"
      @oncontextmenu:preventDefault="true"
      @oncontextmenu:stopPropagation="true">
+
     <div class="cover-container @(UseFullImage ? "wide" : "poster")">
         @if (_currentImage != null)
         {
@@ -26,6 +31,14 @@
         {
             <div class="cover-placeholder"></div>
         }
+
+        <button class="btn  favorite-indicator @(Movie.IsFavorite == true ? "glow-active" : "")"
+                @onclick="ToggleFavoriteAsync"
+                @onclick:stopPropagation="true">
+
+            <Icon Name="@(Movie.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="22" />
+
+        </button>
     </div>
 
     <div class="info">
@@ -36,7 +49,7 @@
 </div>
 
 @code {
-    [Parameter, EditorRequired] public MovieDto Movie { get; set; } = default!;
+    [Parameter, EditorRequired] public MovieCardDto Movie { get; set; } = default!;
     [Parameter] public bool UseFullImage { get; set; }
     [Parameter] public bool IsSelected { get; set; }
 
@@ -85,7 +98,19 @@
     // {       
     //     return _currentImage != null;
     // }
+    private async Task ToggleFavoriteAsync()
+    {
+        Movie.IsFavorite = !(Movie.IsFavorite ?? false);
 
+        try
+        {
+            await MoviesRepo.ToggleMovieFavoriteAsync(Movie.Id);
+        }
+        catch
+        {
+            Movie.IsFavorite = !Movie.IsFavorite;
+        }
+    }
     protected override void OnParametersSet()
     {
         var requestKey = $"{Movie.Id}_{UseFullImage}";

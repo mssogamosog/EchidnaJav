@@ -1,7 +1,9 @@
 ﻿@page "/movie/{Id}"
+@using EchidnaJav.Components.Common
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
+@using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IMovieRepositoryService MoviesRepo
 @inject IActressRepositoryService ActressRepo
@@ -37,11 +39,13 @@
                 <span style="font-weight: bold; text-align: center; padding: 10px;">Drop new cover here (or click)</span>
             </div>
         }
-        else if (movie?.Files?.Any() == true)
+        else
         {
-            <div class="media-controls-overlay">
-                <button class="btn-play-main" @onclick="() => PlaybackService.PlayAllAsync(movie.Id, movie.Files)">▶ Play</button>
-            </div>
+            <button class="btn btn-link p-0 border-0 favorite-indicator @(movie?.IsFavorite == true ? "glow-active" : "")"
+                    @onclick="ToggleFavoriteAsync"
+                    @onclick:stopPropagation="true">
+                <Icon Name="@(movie?.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="32" />
+            </button>
         }
     </div>
 
@@ -68,6 +72,11 @@
 
             <div class="poster-container">
                 <img src="@posterImage" class="poster-img" />
+                <button class="btn btn-link p-0 border-0 favorite-indicator @(movie?.IsFavorite == true ? "glow-active" : "")"
+                        @onclick="ToggleFavoriteAsync"
+                        @onclick:stopPropagation="true">
+                    <Icon Name="@(movie?.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="24" />
+                </button>
             </div>
 
             <div class="info-main">
@@ -293,7 +302,7 @@
     private bool showContextMenu = false;
     private double contextMenuX = 0;
     private double contextMenuY = 0;
-    private List<MovieDto> contextMenuMovies = new();
+    private List<MovieCardDto> contextMenuMovies = new();
 
     private class ScrollInfo
     {
@@ -570,9 +579,9 @@
 
         // The ContextMenu expects a list of MovieDto, but this page uses MovieDetailsDto.
         // We create a temporary list with just this one movie to satisfy the component!
-        contextMenuMovies = new List<MovieDto>
+        contextMenuMovies = new List<MovieCardDto>
         {
-            new MovieDto
+            new MovieCardDto
             {
                 Id = movie.Id,
                 Title = movie.Title,
@@ -602,6 +611,19 @@
         else
         {
             await FetchAndLoadMovieAsync();
+        }
+    }
+    private async Task ToggleFavoriteAsync()
+    {
+        movie.IsFavorite = !(movie.IsFavorite ?? false);
+
+        try
+        {
+            await MoviesRepo.ToggleMovieFavoriteAsync(movie.Id);
+        }
+        catch
+        {
+            movie.IsFavorite = !movie.IsFavorite;
         }
     }
     public void Dispose()

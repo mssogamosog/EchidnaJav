@@ -4,7 +4,7 @@ namespace EchidnaJav.Core.Domain.States
 {
     public class PageCacheEntry
     {
-        public List<MovieDto> Movies { get; set; } = new();
+        public List<MovieCardDto> Movies { get; set; } = new();
         public int TotalCount { get; set; }
         public bool HasMore { get; set; } = true;
         public double ScrollPosition { get; set; }

@@ -1,10 +1,12 @@
 ﻿@page "/actress/{Name}"
+@using EchidnaJav.Components.Common
+@using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
 @using EchidnaJav.Core.Infrastructure.Helpers
-@inject IActressRepositoryService Repo
+@inject IActressRepositoryService ActressRepo
 @inject IImageService ImageService
 @inject NavigationManager Nav
 @inject TransientUIState UI
@@ -49,9 +51,14 @@
                         }
 
                         <img src="@(_previewImageUrl ?? actressImage)" class="poster-img" alt="@actress.Name" />
-
+                        <button class="btn btn-link p-0 border-0 favorite-indicator @(actress?.IsFavorite == true ? "glow-active" : "")"
+                                @onclick="ToggleFavoriteAsync"
+                                @onclick:stopPropagation="true">
+                            <Icon Name="@(actress?.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="32" />
+                        </button>
                         @if (actress.Images.Count > 1 && !isEditing)
                         {
+
                             <button class="carousel-btn next" @onclick="() => RotateImage(1)">❯</button>
                             <div class="image-counter">@(currentIndex + 1) / @actress.Images.Count</div>
                         }
@@ -73,6 +80,7 @@
                         <span>Drop new photo here (or click)</span>
                     </div>
                 }
+             
             </div>
             <div class="info-main">
                 <div class="info-grid">
@@ -159,12 +167,11 @@
         </div>
 
         <div class="movies-container">
-            <div class="movies-container">
-                <h3 class="movies-header">Appears In (@actress.Movies?.Count)</h3>
-            
-                <Home FixedActress="@actress.Name" />
-            </div>
+            <h3 class="movies-header">Appears In (@actress.Movies?.Count)</h3>
+
+            <Home FixedActress="@actress.Name" />
         </div>
+       
     }
 </div>
 
@@ -184,7 +191,7 @@
     protected override async Task OnParametersSetAsync()
     {
         string decodedName = Uri.UnescapeDataString(Name);
-        actress = await Repo.GetActressDetailsAsync(decodedName);
+        actress = await ActressRepo.GetActressDetailsAsync(decodedName);
 
         if (actress != null)
         {
@@ -207,7 +214,7 @@
         var selectedImage = actress.Images[currentIndex];
         
         await LoadCurrentImage();
-        await Repo.SetDefaultActressImageAsync(actress.Name, selectedImage.Filepath);
+        await ActressRepo.SetDefaultActressImageAsync(actress.Name, selectedImage.Filepath);
     }
 
     private async Task LoadCurrentImage()
@@ -216,6 +223,11 @@
         {
             actressImage = await ImageService.GetImageAsync(actress.Images[currentIndex].Filepath, ImageType.Full);
         }
+    }
+    private async Task ToggleFavoriteAsync()
+    {
+        actress.IsFavorite = !(actress.IsFavorite ?? false);
+        await   ActressRepo.ToggleActressFavoriteAsync(actress.Id);
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -270,7 +282,7 @@
         // actress.ImagesToDelete = _imagesToDelete;
 
         // 🔥 Call your repo to save:
-        // bool success = await Repo.UpdateActressDetailsAsync(actress);
+        // bool success = await ActressRepo.UpdateActressDetailsAsync(actress);
 
         // if (success) {
         _pendingImageBytes = null;

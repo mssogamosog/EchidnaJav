@@ -1,8 +1,12 @@
-﻿@using EchidnaJav.Core.Domain.DTOs
+﻿@using EchidnaJav.Components.Common
+@using EchidnaJav.Core.Domain
+@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Helpers
+@using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IJSRuntime JS
+@inject IActressRepositoryService ActressRepo
 @inject IImageService ImageService
 @inject TransientUIState UI
 @implements IAsyncDisposable
@@ -29,7 +33,11 @@
                 <span class="bi bi-person-fill placeholder-icon"></span>
             </div>
         }
-
+        <button class="btn btn-link p-0 border-0 favorite-indicator @(Actress.IsFavorite == true ? "glow-active" : "")"
+                @onclick="ToggleFavoriteAsync"
+                @onclick:stopPropagation="true">
+            <Icon Name="@(Actress.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="24" />
+        </button>
         @if (ShowExtendedDetailsOverlay)
         {
             <div class="details-overlay">
@@ -107,6 +115,11 @@
     private string? GetPrimaryImagePath()
     {
         return Actress.Images?.FirstOrDefault()?.Filepath;
+    }
+    private async Task ToggleFavoriteAsync()
+    {
+        Actress.IsFavorite = !(Actress.IsFavorite ?? false);
+        await ActressRepo.ToggleActressFavoriteAsync(Actress.Id);
     }
 
     protected override void OnParametersSet()

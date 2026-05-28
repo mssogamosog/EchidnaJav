@@ -55,7 +55,7 @@
 @code {
     [Parameter] public string? FixedActress { get; set; }
 
-    private List<MovieDto> Movies = new();
+    private List<MovieCardDto> Movies = new();
     private ElementReference _triggerElement;
     private DotNetObjectReference<Home>? _dotnetRef;
     private CancellationTokenSource? _cts;
@@ -128,7 +128,7 @@
         var cache = NavCache.GetCache(CurrentPageKey);
         if (cache.Movies.Any())
         {
-            Movies = new List<MovieDto>(cache.Movies);
+            Movies = new List<MovieCardDto>(cache.Movies);
             hasMore = cache.HasMore;
             SearchFilter.SetTotalCount(cache.TotalCount);
         }
@@ -145,7 +145,7 @@
     }
 
     // --- SELECTION & CONTEXT MENU HANDLERS ---
-    private async Task HandleMovieClick(MovieDto movie, int index, MouseEventArgs e)
+    private async Task HandleMovieClick(MovieCardDto movie, int index, MouseEventArgs e)
     {
         _isMenuVisible = false;
 
@@ -175,7 +175,7 @@
         }
     }
 
-    private void HandleRightClick(MovieDto movie, int index, MouseEventArgs e)
+    private void HandleRightClick(MovieCardDto movie, int index, MouseEventArgs e)
     {
         if (!_selectedMovieIds.Contains(movie.Id))
         {
@@ -200,7 +200,7 @@
         }
     }
 
-    private List<MovieDto> GetSelectedMovieObjects() => Movies.Where(m => _selectedMovieIds.Contains(m.Id)).ToList();
+    private List<MovieCardDto> GetSelectedMovieObjects() => Movies.Where(m => _selectedMovieIds.Contains(m.Id)).ToList();
 
     private async Task HandleMoviesUpdated()
     {
@@ -324,7 +324,7 @@
 
                 // Sync the loaded data back to the dictionary cache dynamically!
                 var cache = NavCache.GetCache(CurrentPageKey);
-                cache.Movies = new List<MovieDto>(Movies);
+                cache.Movies = new List<MovieCardDto>(Movies);
                 cache.HasMore = hasMore;
             }
             else

@@ -7,6 +7,7 @@
     }
     public class ActressDetailsDto
     {
+        public int Id { get; set; }
         public string Name { get; set; }
         public string? JapaneseName { get; set; }
         public int? DobYear { get; set; }
@@ -21,6 +22,6 @@
         public int MovieCount { get; set; }
         public bool? IsFavorite { get; set; } = false;
         public List<ActressImageDto> Images { get; set; } = new();
-        public List<MovieDto> Movies { get; set; } = new();
+        public List<MovieCardDto> Movies { get; set; } = new();
     }
 }

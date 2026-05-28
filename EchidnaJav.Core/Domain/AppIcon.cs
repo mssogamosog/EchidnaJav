@@ -9,6 +9,8 @@
         GoForward,
         Reload,
         PreviousMovie,
-        NextMovie
+        NextMovie,
+        HeartSolid,
+        HeartOutline
     }
 }

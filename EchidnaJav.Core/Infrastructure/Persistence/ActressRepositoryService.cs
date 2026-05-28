@@ -14,6 +14,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<List<string>> SearchActressNamesAsync(string query);
         Task<List<ActressDetailsDto>> GetAllActressesAsync(string? searchText, SortActressesBy sortBy);
         Task MergeActressesAsync(string targetName, List<string> sourceNames);
+        Task<bool?> ToggleActressFavoriteAsync(int actressId);
     }
 
     public class ActressRepositoryService : IActressRepositoryService
@@ -134,6 +135,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             // 3. Map the Entity to your DTO
             var dto = new ActressDetailsDto
             {
+                Id = entity.Id,
                 Name = entity.Name ?? "Unknown",
                 JapaneseName = entity.JapaneseName,
                 DobYear = entity.DobYear,
@@ -145,6 +147,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 Waist = entity.Waist,
                 Hips = entity.Hips,
                 BloodType = entity.BloodType,
+                IsFavorite = entity.IsFavorite,
 
                 // Map the images and sort them by their Index
                 Images = entity.Images != null
@@ -161,14 +164,14 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 Movies = entity.MovieActresses != null
                     ? entity.MovieActresses
                         .Where(ma => ma.Movie != null) // Safety check for bad data
-                        .Select(ma => new MovieDto
+                        .Select(ma => new MovieCardDto
                         {
                             Id = ma.Movie.Id,
                             Title = ma.Movie.Title,
                             ImagePath = ma.Movie.PrimaryImagePath
                             // Map any other properties your MovieDto needs here!
                         }).ToList()
-                    : new List<MovieDto>()
+                    : new List<MovieCardDto>()
             };
 
             return dto;
@@ -350,6 +353,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             // 3. Project directly into DTO for fast performance
             var projectedQuery = query.Select(a => new ActressDetailsDto
             {
+                Id = a.Id,
                 Name = a.Name ?? "Unknown",
                 JapaneseName = a.JapaneseName,
                 DobYear = a.DobYear,
@@ -362,7 +366,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     ? a.Images.OrderBy(i => i.Index)
                               .Select(i => new ActressImageDto { Filepath = i.Filepath, Index = i.Index })
                               .Take(1).ToList()
-                    : new List<ActressImageDto>()
+                    : new List<ActressImageDto>(),
+                IsFavorite = a.IsFavorite
             });
 
             return await projectedQuery.ToListAsync();
@@ -478,6 +483,19 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     }
                 }
             }
+        }
+        public async Task<bool?> ToggleActressFavoriteAsync(int actressId)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            var actress = await db.Actresses.FindAsync(actressId);
+            if (actress != null)
+            {
+                actress.IsFavorite = !(actress.IsFavorite ?? false);
+                await db.SaveChangesAsync();
+                return actress.IsFavorite;
+            }
+            return false;
         }
         private string? GetTargetDirectory(Movie movie)
         {

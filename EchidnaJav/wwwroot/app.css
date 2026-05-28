@@ -602,3 +602,49 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     ::-webkit-scrollbar-thumb:hover {
         background-color: var(--text-muted);
     }
+
+/* Base state: The subtle outline */
+.favorite-indicator {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    z-index: 10;
+    --bs-btn-padding-x: 0;
+    --bs-btn-padding-y: 0;
+    color: var(--primary);
+    opacity: 0.6; /* Keep it subtle when not favorited */
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Make it interactable! */
+    cursor: pointer;
+    background: transparent;
+    /* Smooth transition for hover and favoriting */
+    transition: transform 0.2s ease, color 0.3s ease, opacity 0.3s ease, filter 0.3s ease;
+}
+
+/* Make it pop slightly when the user hovers over it */
+.favorite-indicator:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* Active State: The Theme Glow */
+.favorite-indicator.glow-active {
+    color: var(--primary);
+    opacity: 1;
+    
+    /* Double drop-shadow creates an intense, neon-like glow on the SVG path itself */
+    filter: 
+        drop-shadow(0 0 4px var(--primary)) 
+        drop-shadow(0 0 12px var(--focus));
+}
+/* Strip away the default browser/Bootstrap click outlines */
+.favorite-indicator:focus,
+.favorite-indicator:active,
+.favorite-indicator:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}

@@ -1,12 +1,10 @@
 ﻿/* ================= MAIN GRID ================= */
 .actress-page-container {
     display: grid;
-    /* 280px for Left Column, fluid space for the Right Column */
     grid-template-columns: 280px minmax(0, 1fr);
     gap: 40px;
-    align-items: start; /* Prevents columns from stretching to match heights */
-    padding: 24px;
-    transition: grid-template-columns 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    align-items: start;
+    min-height: 100%;
 }
 /* Widen the sidebar smoothly when editing */
 .actress-page-container.editing-mode {
@@ -14,14 +12,20 @@
 }
 /* ================= LEFT COLUMN ================= */
 .actress-sidebar {
+    position: sticky;
+    top: 24px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    /* Keeps the profile visible while scrolling the movie grid! */
-    position: sticky;
-    top: 24px;
+    height: calc(100vh - 120px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 8px;
+    padding-bottom: 32px;
+    box-sizing: border-box;
+    align-self: start;
+    padding-bottom: 120px;
 }
-
 .title-area {
     display: flex;
     flex-direction: row; /* Changed from column to allow edit button to sit on the right */
@@ -73,6 +77,8 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .movies-header {
@@ -165,7 +171,7 @@
 .image-counter {
     position: absolute;
     bottom: 12px;
-    right: 12px;
+    left: 12px;
     background: rgba(0, 0, 0, 0.6);
     color: white;
     padding: 4px 10px;

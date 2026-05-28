@@ -4,6 +4,7 @@ using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Logging;
 
 namespace EchidnaJav.Core.Infrastructure.Persistence
@@ -11,7 +12,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
     public interface IMovieRepositoryService
     {
         Task<MovieDetailsDto?> GetMovieDetailsAsync(string id);
-        Task<List<MovieDto>> GetMoviesAsync(MovieQueryParameters queryParams);
+        Task<List<MovieCardDto>> GetMoviesAsync(MovieQueryParameters queryParams);
         Task<int> GetTotalMovieCountAsync(MovieQueryParameters queryParams);
         Task<List<string>> GetAllMovieIdsAsync();
         Task<Movie> UpsertScrapedMovieAsync(MovieMetadata scrapedDto, string targetCoverPath, IReadOnlyList<string> files);
@@ -23,6 +24,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<bool> DeleteMovieAsync(string movieId);
         Task<List<string>> SearchGenreNamesAsync(string query);
         Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto);
+        Task<bool?> ToggleMovieFavoriteAsync(string movieId);
     }
 
     public class MovieRepositoryService : IMovieRepositoryService
@@ -104,7 +106,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             return query;
         }
 
-        public async Task<List<MovieDto>> GetMoviesAsync(MovieQueryParameters queryParams)
+        public async Task<List<MovieCardDto>> GetMoviesAsync(MovieQueryParameters queryParams)
         {
             using var db = _dbFactory.CreateDbContext();
             var query = BuildFilteredQuery(db, queryParams);
@@ -125,11 +127,12 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             return await query
                 .Skip(queryParams.Skip)
                 .Take(queryParams.Take)
-                .Select(m => new MovieDto
+                .Select(m => new MovieCardDto
                 {
                     Id = m.Id,
                     Title = m.Title,
-                    ImagePath = m.PrimaryImagePath
+                    ImagePath = m.PrimaryImagePath,
+                    IsFavorite = m.IsFavorite
                 })
                 .ToListAsync();
         }
@@ -676,7 +679,21 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             await db.SaveChangesAsync();
             return !hasErrors;
         }
+        public async Task<bool?> ToggleMovieFavoriteAsync(string movieId)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
 
+            var movie = await db.Movies.FindAsync(movieId);
+            if (movie != null)
+            {
+                movie.IsFavorite = !(movie.IsFavorite ?? false);
+
+                await db.SaveChangesAsync();
+                return movie.IsFavorite;
+            }
+
+            return false;
+        }
         public async Task UpdateMoviePathsAsync(string movieId, List<string> newFilePaths)
         {
             using var db = _dbFactory.CreateDbContext();
