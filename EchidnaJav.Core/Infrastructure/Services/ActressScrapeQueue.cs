@@ -1,7 +1,4 @@
 ﻿using EchidnaJav.Core.Domain.States;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Channels;
 
 namespace EchidnaJav.Core.Infrastructure.Services
@@ -18,7 +15,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         private readonly ScraperActressState _state;
 
         public ActressScrapeQueue(ScraperActressState state)
-        {   
+        {
             _state = state;
             _queue = Channel.CreateUnbounded<string>();
         }

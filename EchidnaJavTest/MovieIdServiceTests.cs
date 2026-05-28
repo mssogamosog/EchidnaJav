@@ -1,8 +1,4 @@
 ﻿using EchidnaJav.Core.Infrastructure.Services;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using Xunit;
 
 namespace EchidnaJav.Test
 {
@@ -24,7 +20,7 @@ namespace EchidnaJav.Test
         [InlineData("abc 123", "ABC-123")]
         [InlineData("mdvr-129A.VR", "MDVR-129")]
         [InlineData("murikuri-001-4k", "MURIKURI-001")]
-        
+
         public void Parse_Basic(string input, string expected)
         {
             var result = _service.ParseMovieID(input);
@@ -75,7 +71,7 @@ namespace EchidnaJav.Test
         [InlineData("448950_3xplanet_DSVR-049_A", "DSVR-049")]
         [InlineData("443876-3xplanet-CRVR-346-A", "CRVR-346")]
         [InlineData("140220B.ABP028HD", "ABP-028")]
-        
+
 
         public void Parse_LongAndEmbedded(string input, string expected)
         {

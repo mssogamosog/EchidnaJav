@@ -1,19 +1,15 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
-using EchidnaJav.Core.Infrastructure.FileSystem;
 using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Interfaces;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 
 namespace EchidnaJav.Scraper
 {
-   
+
 
     public class ActressScrapeService : IScrapeActressService
     {
@@ -61,7 +57,7 @@ namespace EchidnaJav.Scraper
                 _logger.LogInformation("✨ Scraping brand new actress: {Name}", actressData.Name);
             }
 
-          
+
             foreach (var scraper in _scrapers)
             {
                 await ScrapeActressModuleAsync(scraper, actressData, language);
@@ -86,8 +82,8 @@ namespace EchidnaJav.Scraper
 
         private async Task<ActressData> ScrapeActressModuleAsync(IActressScraper module, ActressData actressData, LanguageType language)
         {
-           // if (IsActressDataComplete(actressData))
-               // return actressData;
+            // if (IsActressDataComplete(actressData))
+            // return actressData;
 
             // Pass the runtime data into the module
             await module.ScrapeAsync(actressData.Name, language);

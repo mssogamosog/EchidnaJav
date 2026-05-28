@@ -2,9 +2,6 @@
 using EchidnaJav.Scraper.Interfaces;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EchidnaJav.Scraper
 {

@@ -5,11 +5,6 @@ using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Core.Infrastructure.Persistence
 {
@@ -180,7 +175,9 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     {
                         FileName = f.FileName,
                         FilePath = f.FilePath
-                    }).ToList()
+                    }).ToList(),
+                    IsFavorite = m.IsFavorite,
+                    IsWatched = m.IsWatched
                 })
                 .FirstOrDefaultAsync();
 
@@ -424,6 +421,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             movie.Studio = dto.Studio;
             movie.Director = dto.Director;
             movie.Plot = dto.Plot;
+            movie.IsFavorite = dto.IsFavorite;
+            movie.IsWatched = dto.IsWatched;
 
             if (dto.Premiered.HasValue)
             {

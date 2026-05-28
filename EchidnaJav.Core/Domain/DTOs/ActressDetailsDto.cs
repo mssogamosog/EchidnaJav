@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EchidnaJav.Core.Domain.DTOs
+﻿namespace EchidnaJav.Core.Domain.DTOs
 {
     public class ActressImageDto
     {
@@ -23,7 +19,8 @@ namespace EchidnaJav.Core.Domain.DTOs
         public int? Hips { get; set; }
         public string? BloodType { get; set; }
         public int MovieCount { get; set; }
+        public bool? IsFavorite { get; set; } = false;
         public List<ActressImageDto> Images { get; set; } = new();
-        public List<MovieDto> Movies { get; set; } = new(); 
+        public List<MovieDto> Movies { get; set; } = new();
     }
 }

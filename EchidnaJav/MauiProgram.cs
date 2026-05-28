@@ -124,7 +124,8 @@ namespace EchidnaJav
                 using var db = factory.CreateDbContext();
 
                 // Ensure schema is fully created on app boot
-                db.Database.EnsureCreated();
+                //db.Database.EnsureCreated();
+                db.Database.Migrate();
             }
 
             #endregion

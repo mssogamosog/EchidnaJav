@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EchidnaJav.Core.Domain.Constants
+﻿namespace EchidnaJav.Core.Domain.Constants
 {
     public static class MediaConstants
     {

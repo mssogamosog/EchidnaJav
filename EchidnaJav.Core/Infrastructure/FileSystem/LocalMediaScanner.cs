@@ -1,9 +1,6 @@
 ﻿using EchidnaJav.Core.Domain.Constants;
 using EchidnaJav.Core.Infrastructure.Services;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EchidnaJav.Core.Infrastructure.FileSystem
 {
@@ -24,10 +21,10 @@ namespace EchidnaJav.Core.Infrastructure.FileSystem
 
         public async Task<Dictionary<string, List<string>>> GroupFilesByMovieAsync(string rootPath)
         {
-            
+
             return await Task.Run(async () =>
             {
-               
+
                 var allFiles = Directory.EnumerateFiles(rootPath, "*.*", SearchOption.AllDirectories);
 
                 var groups = new ConcurrentDictionary<string, ConcurrentBag<string>>();

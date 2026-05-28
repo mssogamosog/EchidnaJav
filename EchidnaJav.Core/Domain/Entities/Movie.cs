@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Text;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace EchidnaJav.Core.Domain.Entities
 {
@@ -24,6 +21,8 @@ namespace EchidnaJav.Core.Domain.Entities
         public int? Runtime { get; set; }
         public DateTime? DateAdded { get; set; }
         public string? PrimaryImagePath { get; set; }
+        public bool? IsFavorite { get; set; } = false;
+        public bool? IsWatched { get; set; } = false;
         public List<MovieActress> MovieActresses { get; set; } = new List<MovieActress>();
         public List<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
         public List<FileEntry> Files { get; set; } = new List<FileEntry>();

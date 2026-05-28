@@ -5,11 +5,7 @@ using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Linq;
-using System.Net.Http;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Scraper
 {
@@ -166,7 +162,7 @@ namespace EchidnaJav.Scraper
 
             m_parsingSuccessful = true;
         }
-        
+
         private bool CheckResultsPage(IHtmlDocument document)
         {
             var header = document.QuerySelector("div.archive-title > h1");

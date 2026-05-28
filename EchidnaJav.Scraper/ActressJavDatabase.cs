@@ -1,15 +1,9 @@
-﻿using AngleSharp.Dom;
-using AngleSharp.Html.Dom;
+﻿using AngleSharp.Html.Dom;
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
-using System;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Scraper
 {
@@ -33,7 +27,7 @@ namespace EchidnaJav.Scraper
 
             string formattedName = Actress.Name.Replace(' ', '-').ToLower();
             await ScrapeWebsiteAsync("https://www.javdatabase.com/idols/" + formattedName + "/");
-        }    
+        }
 
         protected override bool IsLanguageSupported()
         {

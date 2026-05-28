@@ -1,9 +1,6 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Xml.Serialization;
 
 namespace EchidnaJav.Core.Infrastructure.Services
@@ -56,7 +53,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
             if (nfo == null)
                 return null;
 
-            
+
             int? ParseInt(string? s)
                 => int.TryParse(s, out var i) ? i : null;
             //_logger.LogInformation("Parsed Date: {DateAdded} , Nfo Value : {NfoValue} Movie Id : {Id}", ParseDate(nfo.DateAdded), nfo.DateAdded, nfo.UniqueId?.Value);

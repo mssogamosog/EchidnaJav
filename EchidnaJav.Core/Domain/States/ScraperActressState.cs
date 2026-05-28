@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EchidnaJav.Core.Domain.States
+﻿namespace EchidnaJav.Core.Domain.States
 {
     public abstract class ScraperStateBase
     {

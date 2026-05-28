@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EchidnaJav.Core.Infrastructure.Services
+﻿namespace EchidnaJav.Core.Infrastructure.Services
 {
     public static class NativeFileDragDropHelper
     {

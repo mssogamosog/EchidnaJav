@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Xml.Serialization;
-
-namespace EchidnaJav.Core.Domain.DTOs
+﻿namespace EchidnaJav.Core.Domain.DTOs
 {
     using System.Xml.Serialization;
 
@@ -90,5 +85,5 @@ namespace EchidnaJav.Core.Domain.DTOs
 
         [XmlElement("height")]
         public int? Height { get; set; }
-    }   
+    }
 }

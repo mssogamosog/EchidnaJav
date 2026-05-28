@@ -1,15 +1,10 @@
 ﻿using AngleSharp.Html.Dom;
 using EchidnaJav.Core.Domain.DTOs;
-using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Scraper
 {

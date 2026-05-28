@@ -1,8 +1,6 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;

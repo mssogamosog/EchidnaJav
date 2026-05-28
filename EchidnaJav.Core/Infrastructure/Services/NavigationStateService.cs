@@ -52,12 +52,12 @@ public class NavigationStateService : IDisposable, INavigationStateService
 
         if (isArrivingAtMovie && isLeavingMovie)
         {
-          
+
             _history[_currentIndex] = e.Location;
         }
         else if (_history.Count == 0 || _history.Last() != e.Location)
         {
-            
+
             _history.Add(e.Location);
             _currentIndex++;
         }

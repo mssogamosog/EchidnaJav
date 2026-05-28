@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Text;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace EchidnaJav.Core.Domain.Entities
 {
@@ -15,7 +12,7 @@ namespace EchidnaJav.Core.Domain.Entities
         public string FileName { get; set; }
         public long SizeBytes { get; set; }
         public DateTime LastModified { get; set; }
-        public string Hash { get; set; } 
-        public bool IsScanned { get; set; } 
+        public string Hash { get; set; }
+        public bool IsScanned { get; set; }
     }
 }

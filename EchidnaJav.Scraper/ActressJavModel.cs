@@ -1,17 +1,14 @@
 ﻿using AngleSharp.Html.Dom;
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Scraper.Helpers;
-using EchidnaJav.Scraper.Interfaces;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
-using System.Net;
-using System.Text.RegularExpressions;
 
 namespace EchidnaJav.Scraper;
 
 public class ActressJavModel : ActressScraperBase
 {
-    public ActressJavModel( ILogger<ActressScraperBase> logger, ISilentWebViewSandbox sandbox)
+    public ActressJavModel(ILogger<ActressScraperBase> logger, ISilentWebViewSandbox sandbox)
         : base(logger, sandbox)
     {
     }
@@ -148,7 +145,7 @@ public class ActressJavModel : ActressScraperBase
         m_parsingSuccessful = true;
     }
 
-    
+
 
     protected override bool IsLanguageSupported() => m_language == LanguageType.English;
 }

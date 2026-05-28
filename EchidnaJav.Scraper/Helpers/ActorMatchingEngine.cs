@@ -1,7 +1,4 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace EchidnaJav.Scraper.Helpers
 {

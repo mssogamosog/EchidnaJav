@@ -1,7 +1,3 @@
-using Microsoft.Maui.Controls;
-using System;
-using System.Threading.Tasks;
-
 namespace EchidnaJav.Scraper.Views;
 
 public partial class CloudflareSolverPage : ContentPage

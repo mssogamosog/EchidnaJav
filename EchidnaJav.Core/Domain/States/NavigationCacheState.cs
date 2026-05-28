@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using EchidnaJav.Core.Domain.DTOs;
+﻿using EchidnaJav.Core.Domain.DTOs;
 
 namespace EchidnaJav.Core.Domain.States
 {

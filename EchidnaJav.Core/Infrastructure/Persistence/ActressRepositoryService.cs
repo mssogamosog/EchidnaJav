@@ -1,10 +1,7 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
-using EchidnaJav.Core.Infrastructure.Helpers;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Core.Infrastructure.Persistence
 {
@@ -226,16 +223,16 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 .Include(a => a.Images)
                 .FirstOrDefaultAsync(a => a.Name != null && a.Name.ToLower() == actressName.ToLower());
 
-            
+
             if (actress == null || actress.Images == null || !actress.Images.Any()) return;
 
-         
+
             var selected = actress.Images.FirstOrDefault(i => i.Filepath == filePath);
 
 
             if (selected == null || selected.Index == 0) return;
 
- 
+
             var sortedImages = actress.Images.OrderBy(i => i.Index).ToList();
 
             sortedImages.Remove(selected);
@@ -260,11 +257,11 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             string lowerQuery = query.ToLower();
 
             var suggestions = await db.Actresses
-                .AsNoTracking() 
+                .AsNoTracking()
                 .Where(a => a.Name != null && a.Name.ToLower().Contains(lowerQuery))
                 .OrderBy(a => a.Name)
                 .Select(a => a.Name!)
-                .Take(10) 
+                .Take(10)
                 .ToListAsync();
 
             return suggestions;
@@ -292,7 +289,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                          EF.Functions.Like(a.JapaneseName, pattern))
                     ));
             }
-            
+
             int currentMonth = DateTime.Today.Month;
             int currentDay = DateTime.Today.Day;
             // 2. Apply Sorting (pushing empty/zero values to the bottom)

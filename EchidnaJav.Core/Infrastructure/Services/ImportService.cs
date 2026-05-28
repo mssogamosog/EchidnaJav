@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
-using System.Xml.Serialization;
 
 namespace EchidnaJav.Core.Infrastructure.Services
 {
@@ -59,7 +58,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         public async Task ImportFromFolderAsync(string rootPath, IProgress<ImportProgress>? progress = null, CancellationToken ct = default)
         {
             await Task.Yield();
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct); 
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var linkedToken = cts.Token;
             var newlyScrapedActresses = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var groups = await _localMediaScanner.GroupFilesByMovieAsync(rootPath);
@@ -145,7 +144,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                     var actressCache = allActresses
                         .SelectMany(a =>
                             (a.AltNames?.Select(alt => alt.Name) ?? Enumerable.Empty<string>())
-                            .Append(a.Name) 
+                            .Append(a.Name)
                             .Where(name => !string.IsNullOrWhiteSpace(name))
                             .Select(name => new KeyValuePair<string, Actress>(name, a))
                         )
@@ -159,9 +158,9 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         );
                     await foreach (var movie in channel.Reader.ReadAllAsync(ct))
                     {
-                        
+
                         try
-                        {                          
+                        {
 
                             var exists = await db.Movies.AnyAsync(m => m.Id == movie.Id, ct);
 
@@ -224,7 +223,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                         }
                         finally
                         {
-                            
+
                             db.ChangeTracker.Clear();
                         }
                     }
@@ -317,14 +316,14 @@ namespace EchidnaJav.Core.Infrastructure.Services
             }
             finally
             {
-               
+
 
                 channel.Writer.TryComplete();
                 try
                 {
                     await consumerTask;
                 }
-                catch{}
+                catch { }
                 finally
                 {
                     imageWriter.TryComplete();
@@ -332,7 +331,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
                 }
             }
         }
-        
+
 
     }
 }

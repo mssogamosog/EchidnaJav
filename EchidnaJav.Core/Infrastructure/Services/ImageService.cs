@@ -8,7 +8,7 @@ using Image = SixLabors.ImageSharp.Image;
 
 namespace EchidnaJav.Core.Infrastructure.Services
 {
-   
+
     public interface IAppPaths
     {
         string AppDataDirectory { get; }
@@ -27,7 +27,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
         Task GenerateImagesAsync(string originalPath, bool forceOverwrite = false);
         string? GetBestImage(Movie movie);
         Task<string?> GetImageAsync(string originalPath, ImageType type);
-        Task<string?> DownloadImageAsync( string destinationPath, string imageUrl);
+        Task<string?> DownloadImageAsync(string destinationPath, string imageUrl);
         Task ImportCoverImageAsync(string movieId, string sourceFilePath);
         Task SaveNewCoverImageAsync(string targetPath, byte[] imageData);
     }
@@ -155,7 +155,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
 
                 return $"data:image/jpeg;base64,";
             }
-            
+
         }
 
         public string GetCachePath(string originalPath, ImageType type)

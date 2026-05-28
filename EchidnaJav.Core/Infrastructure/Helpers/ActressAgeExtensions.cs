@@ -1,5 +1,4 @@
-﻿using System;
-using EchidnaJav.Core.Domain.DTOs;
+﻿using EchidnaJav.Core.Domain.DTOs;
 
 namespace EchidnaJav.Core.Infrastructure.Helpers
 {
@@ -24,7 +23,7 @@ namespace EchidnaJav.Core.Infrastructure.Helpers
                 return approximateAge > 0 ? $"{approximateAge}" : "Age Unknown";
             }
 
-            
+
             try
             {
                 DateTime birthDate = new DateTime(year, month, day);

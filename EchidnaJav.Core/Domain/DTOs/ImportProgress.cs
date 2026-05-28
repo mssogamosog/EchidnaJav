@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EchidnaJav.Core.Domain.DTOs
+﻿namespace EchidnaJav.Core.Domain.DTOs
 {
     public class ImportProgress
     {

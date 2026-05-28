@@ -1,14 +1,9 @@
 ﻿using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.States;
 using EchidnaJav.Core.Infrastructure.Interfaces;
-using EchidnaJav.Core.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EchidnaJav.Core.Infrastructure.Services
 {

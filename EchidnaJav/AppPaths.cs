@@ -1,7 +1,4 @@
 ﻿using EchidnaJav.Core.Infrastructure.Services;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EchidnaJav
 {

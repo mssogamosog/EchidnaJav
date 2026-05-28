@@ -1,17 +1,11 @@
 ﻿using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using EchidnaJav.Core.Domain.DTOs;
-using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Services;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 // Alias to resolve the ambiguity between AngleSharp.Dom.IElement and Microsoft.Maui.Controls.IElement
 using IDomElement = AngleSharp.Dom.IElement;
@@ -35,7 +29,7 @@ namespace EchidnaJav.Scraper
             ISilentWebViewSandbox sandboxEngine)
             : base(logger, sandboxEngine)
         {
-           
+
         }
 
         public override async Task ScrapeAsync(string movieID, LanguageType language)

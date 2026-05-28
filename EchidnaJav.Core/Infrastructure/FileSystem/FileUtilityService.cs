@@ -1,15 +1,9 @@
 ﻿using EchidnaJav.Core.Domain.Constants;
-using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Core.Infrastructure.Services
 {
@@ -27,7 +21,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
     public class FileUtilityService : IFileUtilityService
     {
         private readonly ILogger<FileUtilityService> _logger;
-        private readonly IMovieRepositoryService _movieRepository; 
+        private readonly IMovieRepositoryService _movieRepository;
 
         public FileUtilityService(ILogger<FileUtilityService> logger, IMovieRepositoryService movieRepository)
         {

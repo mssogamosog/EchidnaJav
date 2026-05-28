@@ -3,13 +3,7 @@ using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Services;
 using EchidnaJav.Scraper.Helpers;
 using EchidnaJav.Scraper.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Scraper
 {
@@ -99,7 +93,7 @@ namespace EchidnaJav.Scraper
                     if (mergedMetadata == null)
                     {
                         mergedMetadata = scraper.Metadata;
-                        mergedMetadata.UniqueID.Value = movieId; 
+                        mergedMetadata.UniqueID.Value = movieId;
                     }
                     else
                     {

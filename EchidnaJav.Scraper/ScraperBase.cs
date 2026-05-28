@@ -1,17 +1,11 @@
-﻿using AngleSharp.Browser;
-using AngleSharp.Html.Dom;
+﻿using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Scraper.Interfaces;
 using EchidnaJav.Scraper.Services;
 using EchidnaJav.Scraper.Views;
 using Microsoft.Extensions.Logging;
-using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Controls;
-using System;
 using System.Net;
-using System.Net.Http;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Scraper
 {
@@ -30,9 +24,9 @@ namespace EchidnaJav.Scraper
         public string ImageSource { get; protected set; } = string.Empty;
         public bool SearchNotFound { get; protected set; }
 
-        public ScraperBase(ILogger<ScraperBase> logger , ISilentWebViewSandbox sandbox)
+        public ScraperBase(ILogger<ScraperBase> logger, ISilentWebViewSandbox sandbox)
         {
-            _logger = logger ;
+            _logger = logger;
             _sandbox = sandbox;
             if (_httpClient == null)
             {
@@ -93,7 +87,7 @@ namespace EchidnaJav.Scraper
                     {
                         // Execute traversal using an off-screen native engine without touching the visual navigation stack
                         html = await _sandbox.ExecuteSilentExtractionAsync(siteURL);
-                        
+
                     }
                     catch (Exception ex)
                     {
@@ -139,7 +133,7 @@ namespace EchidnaJav.Scraper
             while (!parseError && !IsValidDataParsed() && loadCounter <= browserRetries);
         }
 
-      
+
         private async Task<string> FastHttpScrapeAsync(string url)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);

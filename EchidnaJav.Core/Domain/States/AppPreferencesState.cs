@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace EchidnaJav.Core.Domain.States
+﻿namespace EchidnaJav.Core.Domain.States
 {
     public class AppPreferencesState
     {

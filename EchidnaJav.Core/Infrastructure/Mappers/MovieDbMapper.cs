@@ -1,9 +1,6 @@
 ﻿using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EchidnaJav.Core.Infrastructure.Mappers
 {
@@ -127,7 +124,7 @@ namespace EchidnaJav.Core.Infrastructure.Mappers
                     IsScanned = f.IsScanned
                 });
             }
-            
+
             return dbMovie;
         }
 

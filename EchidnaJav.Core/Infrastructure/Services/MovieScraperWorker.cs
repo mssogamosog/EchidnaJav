@@ -3,16 +3,10 @@ using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Domain.States; // <-- Required for ScraperMovieState access
 using EchidnaJav.Core.Infrastructure.Interfaces;
 using EchidnaJav.Core.Infrastructure.Persistence;
-using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace EchidnaJav.Core.Infrastructure.Services
 {
@@ -29,7 +23,7 @@ namespace EchidnaJav.Core.Infrastructure.Services
             IActressScrapeQueue actressQueue,
             IServiceScopeFactory scopeFactory,
             ILogger<MovieScraperWorker> logger,
-            ScraperMovieState state) 
+            ScraperMovieState state)
         {
             _movieQueue = movieQueue;
             _actressQueue = actressQueue;
