@@ -1,0 +1,18 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace EchidnaJav.Core.Domain
+{
+    public enum AppIcon
+    {
+        Home,
+        Actresses,
+        Folder,
+        GoBack,
+        GoForward,
+        Reload,
+        PreviousMovie,
+        NextMovie
+    }
+}

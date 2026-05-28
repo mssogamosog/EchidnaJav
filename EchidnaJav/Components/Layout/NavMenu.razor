@@ -1,4 +1,6 @@
 ﻿@using CommunityToolkit.Maui.Storage
+@using EchidnaJav.Components.Common
+@using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Services
@@ -10,14 +12,14 @@
 <nav class="nav-container">
     <div class="nav-item">
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-            <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span>
+            <Icon Name="AppIcon.Home"  CssClass="menu-icon" />
             <span class="nav-text">Home</span>
         </NavLink>
     </div>
 
     <div class="nav-item">
         <NavLink class="nav-link" href="actresses">
-            <span class="bi bi-people-nav-menu" aria-hidden="true"></span>
+            <Icon Name="AppIcon.Actresses"  CssClass="menu-icon" />
             <span class="nav-text">Actresses</span>
         </NavLink>
     </div>
@@ -26,7 +28,7 @@
         <button class="nav-link"
                 @onclick="PickFolder"
                 disabled="@ImportState.IsRunning">
-            <span class="bi bi-folder-nav-menu" aria-hidden="true"></span>
+            <Icon Name="AppIcon.Folder"  CssClass="menu-icon" />
             <span class="nav-text">@(ImportState.IsRunning ? "Importing..." : "Import Folder")</span>
         </button>
     </div>

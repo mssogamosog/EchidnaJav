@@ -1,48 +1,27 @@
 /* =======================================================
-   NAVMENU.RAZOR.CSS
+   THEME DEFINITIONS (Global Fallbacks)
 ======================================================= */
-
-/* --- SVG Icons (Using your working background-image approach) --- */
-.bi {
-    display: inline-block;
-    position: relative;
-    width: 1.25rem;
-    height: 1.25rem;
-    min-width: 1.25rem; /* Safety check */
-    flex-shrink: 0;
-    margin-right: 0; /* Set to 0 because we are using 'gap' in the link now */
-    top: -1px;
-    background-size: cover;
+:root {
+    --nav-icon-color: white;
 }
 
-.bi-house-door-fill-nav-menu {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' class='bi bi-house-door-fill' viewBox='0 0 16 16'%3E%3Cpath d='M6.5 14.5v-3.505c0-.245.25-.495.5-.495h2c.25 0 .5.25.5.5v3.5a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5Z'/%3E%3C/svg%3E");
-}
-
-/* Updated to People Icon */
-.bi-people-nav-menu {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' class='bi bi-people-fill' viewBox='0 0 16 16'%3E%3Cpath d='M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'/%3E%3C/svg%3E");
-}
-
-/* Updated to Folder Icon */
-.bi-folder-nav-menu {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' class='bi bi-folder2-open' viewBox='0 0 16 16'%3E%3Cpath d='M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5zM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633z'/%3E%3C/svg%3E");
-}
-
-/* Invert default Blazor white SVGs so they are visible in Light Mode */
 @media (prefers-color-scheme: light) {
-    .bi {
-        filter: invert(1) hue-rotate(180deg) brightness(0.2);
+    :root {
+        --nav-icon-color: black;
     }
 }
 
-/* Include manual toggle support for Light Mode inversion */
-:root[data-theme='light'] .bi {
-    filter: invert(1) hue-rotate(180deg) brightness(0.2);
+html[data-theme='light'] {
+    --nav-icon-color: black;
 }
 
+html[data-theme='dark'] {
+    --nav-icon-color: white;
+}
 
-/* --- Base Desktop Link Styling --- */
+/* =======================================================
+   CONTAINER & ITEM LAYOUT
+======================================================= */
 .nav-container {
     display: flex;
     flex-direction: column;
@@ -56,40 +35,23 @@
     font-size: 0.95rem;
 }
 
-    /* --- Core Link & Button Styling --- */
+    /* --- Core Link & Button Layout (NO COLORS HERE) --- */
     .nav-item ::deep .nav-link {
-        color: var(--text-muted);
         background: transparent;
         border: none;
-        border-radius: 0; /* Removed rounding since there is no background box anymore */
+        border-radius: 0;
         height: 48px;
         display: flex;
         align-items: center;
         gap: 16px;
-        /* 20px left padding + 20px icon + 20px right padding = Perfect 60px center! */
         padding: 0 15px;
         width: 100%;
         overflow: hidden;
         white-space: nowrap;
-        /* Removed background-color transition */
-        transition: color 0.2s ease;
         cursor: pointer;
         font-family: inherit;
         font-size: inherit;
         text-align: left;
-    }
-
-    /* Active State: No background box, just green text/icon */
-    .nav-item ::deep a.active {
-        background-color: transparent !important;
-        color: var(--primary);
-        font-weight: bold;
-    }
-
-    /* Hover State: No background box, text/icon just brightens up */
-    .nav-item ::deep .nav-link:hover:not(.active):not(:disabled) {
-        background-color: transparent !important;
-        color: var(--text);
     }
 
 button.nav-link:disabled {
@@ -97,7 +59,49 @@ button.nav-link:disabled {
     cursor: not-allowed;
 }
 
-/* --- Mobile Bottom Bar Overrides --- */
+/* =======================================================
+   TEXT BEHAVIOR (Targeting .nav-text explicitly)
+======================================================= */
+.nav-text {
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+}
+
+/* Hover State - Only changes the text color */
+.nav-item ::deep .nav-link:hover:not(.active):not(:disabled) .nav-text {
+    color: var(--text);
+}
+
+/* Active State - Only changes the text color */
+.nav-item ::deep a.active .nav-text {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+/* =======================================================
+   ICON FIXES (Isolated from text behavior)
+======================================================= */
+.nav-item ::deep .menu-icon {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    flex-shrink: 0 !important;
+    /* Lock the icon strictly to the theme color variable */
+    color: var(--nav-icon-color) !important;
+}
+
+    /* Target the actual svg inside the component */
+    .nav-item ::deep .menu-icon svg {
+        flex-shrink: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        fill: currentColor !important;
+    }
+
+/* =======================================================
+   MOBILE BOTTOM BAR OVERRIDES
+======================================================= */
 @media (max-width: 899px) {
     .nav-container {
         flex-direction: row;
@@ -105,7 +109,7 @@ button.nav-link:disabled {
         justify-content: space-around;
         padding: 0;
         margin: 0;
-        height: 68px
+        height: 68px;
     }
 
     .nav-item {
