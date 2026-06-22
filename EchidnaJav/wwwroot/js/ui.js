@@ -82,12 +82,16 @@ window.getGridColumns = function () {
 };
 window.getScrollPos = function () {
     const el = document.querySelector('.content-area');
-    return el ? el.scrollTop : 0;
+    if (el && el.scrollTop > 0) return el.scrollTop;
+
+    return window.scrollY || document.documentElement.scrollTop || 0;
 };
 
 window.setScrollPos = function (pos) {
     const el = document.querySelector('.content-area');
     if (el) el.scrollTop = pos;
+
+    window.scrollTo(0, pos);
 };
 window.registerGlobalKeyHandler = function (dotNetHelper) {
     document.addEventListener('keydown', function (e) {

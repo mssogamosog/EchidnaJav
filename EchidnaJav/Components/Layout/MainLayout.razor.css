@@ -9,6 +9,7 @@ html, body {
     margin: 0;
     padding: 0;
     background: var(--bg);
+    overflow:hidden;
     color: var(--text);
 }
 
@@ -58,6 +59,8 @@ html, body {
     padding: 16px;
     padding: 24px;
     background: var(--bg);
+    overflow-y: auto;
+    height: 100vh;
 }
 
 /* =======================================================

@@ -171,6 +171,12 @@
         }
         else
         {
+            try
+            {
+                var scroll = await JS.InvokeAsync<double>("getScrollPos");
+                NavCache.GetCache(CurrentPageKey).ScrollPosition = scroll;
+            }
+            catch { /* ignore if JS fails */ }
             Nav.NavigateTo($"/movie/{movie.Id}");
         }
     }
@@ -238,12 +244,17 @@
         {
             _clickOutsideDotNetRef = DotNetObjectReference.Create(this);
             try { await JS.InvokeVoidAsync("clickOutsideHandler.addEvent", _workspaceContainer, _clickOutsideDotNetRef); } catch { }
-
+            double initialScroll = NavCache.GetCache(CurrentPageKey).ScrollPosition;
+            if (initialScroll <= 0)
+            {
+                await JS.InvokeVoidAsync("setScrollPos", 0);
+            }
             if (Movies.Any())
             {
                 double targetScroll = NavCache.GetCache(CurrentPageKey).ScrollPosition;
                 if (targetScroll > 0)
                 {
+                    await Task.Yield();
                     await JS.InvokeVoidAsync("setScrollPos", targetScroll);
                 }
             }

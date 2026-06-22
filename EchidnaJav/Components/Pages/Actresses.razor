@@ -3,26 +3,32 @@
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Helpers
+@using EchidnaJav.Core.Infrastructure.Services
 @inject IActressRepositoryService Repo
 @inject NavigationManager Nav
 @inject TransientUIState UI
 @inject SearchFilterState SearchFilter
 @inject NavigationCacheState NavCache
+@inject INavigationStateService NavState
 @inject IJSRuntime JS
 @implements IDisposable
 
 <div class="actresses-page-container" @onclick="ClearSelection">
     <div class="actresses-grid">
-        @for (int i = 0; i < actressList.Count; i++)
+        @if (actressList != null)
         {
-            var index = i;
-            var actress = actressList[i];
+            @for (int i = 0; i < actressList.Count; i++)
+            {
+                var index = i;
+                var actress = actressList[i];
 
-            <ActressCard Actress="@actress"
-                         HighlightText="@GetHighlightText(actress)"
-                         IsSelected="_selectedActressNames.Contains(actress.Name)"
-                         OnActressClicked="(e) => HandleActressClick(actress, index, e)"
-                         OnActressRightClicked="(e) => HandleRightClick(actress, index, e)" />
+                <ActressCard @key="actress.Name"
+                             Actress="@actress"
+                             HighlightText="@GetHighlightText(actress)"
+                             IsSelected="_selectedActressNames.Contains(actress.Name)"
+                             OnActressClicked="(e) => HandleActressClick(actress, index, e)"
+                             OnActressRightClicked="(e) => HandleRightClick(actress, index, e)" />
+            }
         }
     </div>
 
@@ -40,7 +46,7 @@
 @code {
     private List<ActressDetailsDto>? actressList;
     private IDisposable? _locationRegistration;
-    private const string PageKey = "Actresses";
+    private const string _currentPageKey = "Actresses";
     private bool _isDisposed = false;
     // Selection state
     private HashSet<string> _selectedActressNames = new();
@@ -58,7 +64,7 @@
         UI.SetFooterText("Actresses");
         SearchFilter.OnSearchChanged += ReloadActresses;
         _locationRegistration = Nav.RegisterLocationChangingHandler(OnLocationChanging);
-
+        NavState.OnReloadRequested += HandleReloadRequested;
         await FetchData();
     }
 
@@ -104,23 +110,51 @@
         // When the page first renders and data is loaded, restore the scroll position
         if (firstRender)
         {
-            var savedScroll = NavCache.GetCache(PageKey).ScrollPosition;
+
+            var savedScroll = NavCache.GetCache(_currentPageKey).ScrollPosition;
             if (savedScroll > 0)
             {
                 // A small delay ensures the DOM has fully populated the grid before scrolling
                 await Task.Yield();
                 await JS.InvokeVoidAsync("setScrollPos", savedScroll);
             }
+            else if (firstRender)
+            {
+                await JS.InvokeVoidAsync("setScrollPos", 0);
+            }
         }
     }
+    private void HandleReloadRequested()
+    {
+        InvokeAsync(async () =>
+        {
+            if (_isDisposed) return;
 
+            NavCache.ResetCache(_currentPageKey);
+            ClearSelection();
+            actressList = null;
+            StateHasChanged();
+
+            await FetchData();
+
+            try
+            {
+                await JS.InvokeVoidAsync("setScrollPos", 0);
+            }
+            catch
+            {
+            }
+
+            StateHasChanged();
+        });
+    }
     private async ValueTask OnLocationChanging(LocationChangingContext context)
     {
         try
         {
             // Save the current scroll position into the generic dictionary right before the page changes
             double scroll = await JS.InvokeAsync<double>("getScrollPos");
-            NavCache.GetCache(PageKey).ScrollPosition = scroll;
+            NavCache.GetCache(_currentPageKey).ScrollPosition = scroll;
         }
         catch
         {
@@ -213,6 +247,8 @@
     public void Dispose()
     {
         _isDisposed = true;
+        SearchFilter.OnSearchChanged -= ReloadActresses;
+        NavState.OnReloadRequested -= HandleReloadRequested;
         _locationRegistration?.Dispose();
     }
 }

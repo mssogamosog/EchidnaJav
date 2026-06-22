@@ -198,6 +198,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 10px 14px;
+    gap: 12px;
     background-color: var(--surface-2);
     border: 1px solid transparent;
     border-radius: 8px;
@@ -213,8 +214,14 @@
     color: var(--text);
     font-size: 0.85rem;
     font-weight: 500;
+    flex: 1;
+    min-width: 0; 
+    white-space: nowrap;
+    overflow: hidden; 
+    text-overflow: ellipsis;
 }
 .file-play-btn {
+    flex-shrink: 0;
     background: transparent;
     color: var(--primary);
     border: 1px solid var(--primary);

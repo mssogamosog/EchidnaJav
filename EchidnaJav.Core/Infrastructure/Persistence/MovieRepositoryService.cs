@@ -34,6 +34,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         private readonly IMovieScrapeService _scrapeService;
         private readonly INfoGeneratorService _nfoGenerator;
         private readonly IActressScrapeQueue _actressQueue;
+        private readonly IMovieIdService _movieIdService;
         private readonly ILogger<MovieRepositoryService> _logger;
 
         public MovieRepositoryService(
@@ -42,6 +43,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             IMovieScrapeService scrapeService,
             INfoGeneratorService nfoGenerator,
             IActressScrapeQueue actressQueue,
+            IMovieIdService movieIdService,
             ILogger<MovieRepositoryService> logger)
         {
             _dbFactory = dbFactory;
@@ -49,6 +51,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             _scrapeService = scrapeService;
             _nfoGenerator = nfoGenerator;
             _actressQueue = actressQueue;
+            _movieIdService = movieIdService;
             _logger = logger;
         }
 
@@ -95,8 +98,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 }
             }
 
-            query = query.Where(m => m.Files.Any(f =>
-                MediaConstants.VideoExtensions.Any(ext => f.FileName.EndsWith(ext))));
+            //query = query.Where(m => m.Files.Any(f =>
+            //    MediaConstants.VideoExtensions.Any(ext => f.FileName.EndsWith(ext))));
 
             if (queryParams.MissingImageOnly)
             {
@@ -109,7 +112,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         public async Task<List<MovieCardDto>> GetMoviesAsync(MovieQueryParameters queryParams)
         {
             using var db = _dbFactory.CreateDbContext();
-            var query = BuildFilteredQuery(db, queryParams);
+           var query = BuildFilteredQuery(db, queryParams);
 
             query = queryParams.SortBy switch
             {
@@ -501,8 +504,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             string folderName = new DirectoryInfo(directoryPath).Name;
             string normalizedId = movie.NormalizedId ?? movieId.Replace("-", "");
 
-            bool isDedicatedFolder = folderName.Contains(movieId, StringComparison.OrdinalIgnoreCase) ||
-                                     folderName.Contains(normalizedId, StringComparison.OrdinalIgnoreCase);
+            bool isDedicatedFolder = _movieIdService.MovieIDEquals(movie.Id, folderName);
 
             var targetMovieFiles = new List<string>();
             foreach (var file in allPhysicalFiles)
@@ -514,8 +516,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 else
                 {
                     string fileName = Path.GetFileNameWithoutExtension(file);
-                    if (fileName.Contains(movieId, StringComparison.OrdinalIgnoreCase) ||
-                        fileName.Contains(normalizedId, StringComparison.OrdinalIgnoreCase))
+                    if (_movieIdService.MovieIDEquals(movie.Id, fileName))
                     {
                         targetMovieFiles.Add(file);
                     }
