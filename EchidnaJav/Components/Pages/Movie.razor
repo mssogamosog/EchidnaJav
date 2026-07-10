@@ -12,20 +12,36 @@
 @inject NavigationManager Nav
 @inject IPlaybackService PlaybackService
 @inject TransientUIState UI
+@inject IMovieIdService MovieIdService
 
 <div class="movie-page-container" 
      @oncontextmenu="ShowContextMenu"
      @oncontextmenu:preventDefault="true">
 
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger error-alert">
+            @errorMessage
+        </div>
+    }
+
     <div class="title-area">
-        <h4 class="movie-id">@movie?.Id</h4>
-        @if (isEditing)
+        @if (IsCreate)
         {
-            <input @bind="movie!.Title" class="form-control title-input" style="font-size: 1.8rem; width: 100%; font-weight: bold;" />
+            <input @bind="movie!.Id" class="form-control create-id-input" placeholder="Movie ID" />
+            <input @bind="movie!.Title" class="form-control title-input create-title-input" placeholder="Movie Title" />
         }
         else
         {
-            <h1 class="movie-title">@movie?.Title</h1>
+            <h4 class="movie-id">@movie?.Id</h4>
+            @if (isEditing)
+            {
+                <input @bind="movie!.Title" class="form-control title-input" style="font-size: 1.8rem; width: 100%; font-weight: bold;" />
+            }
+            else
+            {
+                <h1 class="movie-title">@movie?.Title</h1>
+            }
         }
     </div>
 
@@ -285,6 +301,9 @@
 }
 @code {
     [Parameter] public string Id { get; set; }
+    [SupplyParameterFromQuery] public bool IsCreate { get; set; }
+
+    private string? errorMessage = null;
 
     private MovieDetailsDto? movie;
     private string? fullImage;
@@ -346,8 +365,45 @@
     {
         _shouldScrollToTop = true;
         isEditing = false;
+        errorMessage = null;
 
-        await FetchAndLoadMovieAsync();
+        if (IsCreate)
+        {
+            isEditing = true;
+            
+            // Clear residual state from any previously viewed movie
+            fullImage = null;
+            posterImage = null;
+            _previewImageUrl = null;
+            recommendedMovies = new List<MovieCardDto>();
+            _pendingImageBytes = null;
+            _pendingImageExtension = null;
+
+            string proposedId = "NEW-" + Guid.NewGuid().ToString("N").Substring(0, 5).ToUpper();
+
+            if (UI.PendingCreateFiles != null && UI.PendingCreateFiles.Any())
+            {
+                var firstFile = UI.PendingCreateFiles.First();
+                var parsedId = MovieIdService.ParseMovieID(firstFile);
+                if (!string.IsNullOrEmpty(parsedId))
+                {
+                    proposedId = parsedId;
+                }
+            }
+
+            movie = new MovieDetailsDto
+            {
+                Id = proposedId,
+                Title = proposedId,
+                Files = UI.PendingCreateFiles?.Select(f => new FileDto { FilePath = f, FileName = Path.GetFileName(f) }).ToList() ?? new(),
+                Genres = new(),
+                Cast = new()
+            };
+        }
+        else
+        {
+            await FetchAndLoadMovieAsync();
+        }
     }
 
     private async Task FetchAndLoadMovieAsync()
@@ -478,6 +534,12 @@
     // ==========================================
     private async Task ToggleEditModeAsync()
     {
+        if (IsCreate)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
         if (isEditing)
         {
             // 🔥 Cancelled: Wipe draft image and refetch original data to guarantee clean paths
@@ -492,13 +554,26 @@
     private async Task SaveChanges()
     {
         if (movie == null) return;
+        errorMessage = null;
 
         // Pass the draft image into the DTO
         movie.NewCoverImageBytes = _pendingImageBytes;
         movie.NewCoverImageExtension = _pendingImageExtension;
 
-        // Save atomically
-        bool success = await MoviesRepo.UpdateMovieDetailsAsync(movie);
+        bool success;
+        if (IsCreate)
+        {
+            success = await MoviesRepo.CreateMovieAsync(movie);
+            if (!success)
+            {
+                errorMessage = "Failed to create movie. The Movie ID might already exist.";
+                return;
+            }
+        }
+        else
+        {
+            success = await MoviesRepo.UpdateMovieDetailsAsync(movie);
+        }
 
         if (success)
         {
@@ -507,8 +582,16 @@
             _previewImageUrl = null;
             isEditing = false;
 
-            // 🔥 Saved: Refetch fresh to guarantee paths don't get corrupted
-            await FetchAndLoadMovieAsync();
+            if (IsCreate)
+            {
+                UI.PendingCreateFiles.Clear();
+                Nav.NavigateTo($"/movie/{Uri.EscapeDataString(movie.Id)}", forceLoad: false);
+            }
+            else
+            {
+                // 🔥 Saved: Refetch fresh to guarantee paths don't get corrupted
+                await FetchAndLoadMovieAsync();
+            }
         }
     }
 

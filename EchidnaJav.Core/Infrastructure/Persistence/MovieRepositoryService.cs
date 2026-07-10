@@ -24,6 +24,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<bool> DeleteMovieAsync(string movieId);
         Task<List<string>> SearchGenreNamesAsync(string query);
         Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto);
+        Task<bool> CreateMovieAsync(MovieDetailsDto dto);
         Task<bool?> ToggleMovieFavoriteAsync(string movieId);
         Task<bool?> ToggleMovieWatchLaterAsync(string movieId);
         Task<List<MovieCardDto>> GetRecommendedMoviesAsync(string currentMovieId, int count = 10);
@@ -421,21 +422,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
             await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDirectory);
         }
-        public async Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto)
+        private async Task ApplyDtoToMovieEntityAsync(AppDbContext db, Movie movie, MovieDetailsDto dto)
         {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Id)) return false;
-
-            using var db = _dbFactory.CreateDbContext();
-
-            var movie = await db.Movies
-                .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
-                .Include(m => m.MovieActresses).ThenInclude(ma => ma.Actress)
-                .Include(m => m.Files)
-                .FirstOrDefaultAsync(m => m.Id == dto.Id);
-
-            if (movie == null) return false;
-
-            // 1. Map Scalar Properties
             movie.Title = dto.Title ?? string.Empty;
             movie.Runtime = dto.Runtime;
             movie.Studio = dto.Studio;
@@ -456,7 +444,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 movie.Year = 0;
             }
 
-            // 2. Sync Relationships
             await SyncGenresAsync(db, movie, dto.Genres);
 
             var mappedActors = dto.Cast
@@ -465,33 +452,87 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 .ToList();
 
             await SyncActressesAsync(db, movie, mappedActors);
+        }
 
-            // 3. Determine the target directory for files
+        private async Task SaveMovieWithImageAndNfoAsync(AppDbContext db, Movie movie, MovieDetailsDto dto)
+        {
             var targetDirectory = GetTargetDirectory(movie);
 
-            // 🔥 NEW: 4. Handle Image Update atomically BEFORE SaveChanges
             if (dto.NewCoverImageBytes != null && !string.IsNullOrWhiteSpace(dto.NewCoverImageExtension) && !string.IsNullOrWhiteSpace(targetDirectory))
             {
                 string targetCoverPath = Path.Combine(targetDirectory, $"{movie.Id}-cover{dto.NewCoverImageExtension}");
 
-                // Write the physical file
                 await File.WriteAllBytesAsync(targetCoverPath, dto.NewCoverImageBytes);
-
-                // Tell EF Core to update the database path
                 movie.PrimaryImagePath = targetCoverPath;
-
-                // Generate cache thumbnails
                 await _imageService.GenerateImagesAsync(targetCoverPath, forceOverwrite: true);
             }
 
-            // 5. Atomic Save (Updates text fields, relationships, and image path all at once!)
             await db.SaveChangesAsync();
 
-            // 6. Update local NFO file
             if (!string.IsNullOrWhiteSpace(targetDirectory) && Directory.Exists(targetDirectory))
             {
                 await _nfoGenerator.GenerateNfoAsync(movie.Id, targetDirectory);
             }
+        }
+
+        public async Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Id)) return false;
+
+            using var db = _dbFactory.CreateDbContext();
+
+            var movie = await db.Movies
+                .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+                .Include(m => m.MovieActresses).ThenInclude(ma => ma.Actress)
+                .Include(m => m.Files)
+                .FirstOrDefaultAsync(m => m.Id == dto.Id);
+
+            if (movie == null) return false;
+
+            await ApplyDtoToMovieEntityAsync(db, movie, dto);
+            await SaveMovieWithImageAndNfoAsync(db, movie, dto);
+
+            return true;
+        }
+
+        public async Task<bool> CreateMovieAsync(MovieDetailsDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Id)) return false;
+
+            using var db = _dbFactory.CreateDbContext();
+            
+            var exists = await db.Movies.AnyAsync(m => m.Id == dto.Id);
+            if (exists) return false;
+
+            var movie = new Movie
+            {
+                Id = dto.Id,
+                NormalizedId = _movieIdService.GenerateNormalizedID(dto.Id),
+                DateAdded = DateTime.UtcNow
+            };
+            db.Movies.Add(movie);
+
+            if (dto.Files != null)
+            {
+                foreach (var f in dto.Files)
+                {
+                    if (string.IsNullOrWhiteSpace(f.FilePath)) continue;
+                    var fileInfo = new FileInfo(f.FilePath);
+                    movie.Files.Add(new FileEntry
+                    {
+                        MovieId = movie.Id,
+                        FileName = fileInfo.Name,
+                        FilePath = fileInfo.FullName,
+                        SizeBytes = fileInfo.Length,
+                        LastModified = fileInfo.LastWriteTimeUtc,
+                        IsScanned = true,
+                        Hash = string.Empty
+                    });
+                }
+            }
+
+            await ApplyDtoToMovieEntityAsync(db, movie, dto);
+            await SaveMovieWithImageAndNfoAsync(db, movie, dto);
 
             return true;
         }

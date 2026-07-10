@@ -1,9 +1,10 @@
-﻿namespace EchidnaJav.Core.Domain.States
+namespace EchidnaJav.Core.Domain.States
 {
     public class TransientUIState
     {
         public int SelectedMoviesCount { get; private set; }
         public string? FooterText { get; private set; }
+        public List<string> PendingCreateFiles { get; set; } = new();
 
         public event Action? OnChange;
 

@@ -485,3 +485,7 @@
     bottom: 16px;
     right: 56px; 
 }
+/* ================= CREATE MODE ALERTS & INPUTS ================= */
+.error-alert { margin-bottom: 1rem; color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; padding: .75rem 1.25rem; border: 1px solid transparent; border-radius: .25rem; }
+.create-id-input { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; max-width: 300px; }
+.create-title-input { font-size: 1.8rem; width: 100%; font-weight: bold; }

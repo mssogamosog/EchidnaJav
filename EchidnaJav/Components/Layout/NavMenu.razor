@@ -8,6 +8,7 @@
 @inject ImportState ImportState
 @inject SearchFilterState SearchFilter
 @inject NavigationManager Nav
+@inject TransientUIState UI
 @implements IDisposable
 
 
@@ -48,6 +49,13 @@
                 disabled="@ImportState.IsRunning">
             <Icon Name="AppIcon.Folder"  CssClass="menu-icon" />
             <span class="nav-text">@(ImportState.IsRunning ? "Importing..." : "Import Folder")</span>
+        </button>
+    </div>
+
+    <div class="nav-item">
+        <button class="nav-link" @onclick="PickMovieFiles">
+            <Icon Name="AppIcon.Film" CssClass="menu-icon" />
+            <span class="nav-text">Add Movie</span>
         </button>
     </div>
 </nav>
@@ -135,6 +143,28 @@
                 ImportState.IsRunning = false;
                 ImportState.Notify();
             }
+        }
+    }
+
+    private async Task PickMovieFiles()
+    {
+        var customFileType = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+        {
+            { DevicePlatform.WinUI, new[] { ".mp4", ".mkv", ".avi", ".wmv", ".mov", ".ts", ".flv" } },
+            { DevicePlatform.MacCatalyst, new[] { "public.movie" } }
+        });
+
+        var result = await Microsoft.Maui.Storage.FilePicker.Default.PickMultipleAsync(new PickOptions
+        {
+            PickerTitle = "Select Movie Video Files",
+            FileTypes = customFileType
+        });
+
+        if (result != null && result.Any())
+        {
+            var files = result.Select(r => r.FullPath).ToList();
+            UI.PendingCreateFiles = files;
+            Nav.NavigateTo("/movie/create?IsCreate=true");
         }
     }
 }
