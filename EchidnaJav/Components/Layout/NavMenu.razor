@@ -35,6 +35,14 @@
     </div>
 
     <div class="nav-item">
+        <button class="nav-link @(SearchFilter.WatchLaterOnly ? "active" : "")"
+                @onclick="ToggleWatchLater">
+            <Icon Name="@(SearchFilter.WatchLaterOnly ? AppIcon.ClockSolid : AppIcon.ClockOutline)" CssClass="menu-icon" />
+            <span class="nav-text">Watch Later</span>
+        </button>
+    </div>
+
+    <div class="nav-item">
         <button class="nav-link"
                 @onclick="PickFolder"
                 disabled="@ImportState.IsRunning">
@@ -66,6 +74,20 @@
     private void ToggleFavorites()
     {
         SearchFilter.ToggleFavoritesOnly();
+        var currentUrl = Nav.ToBaseRelativePath(Nav.Uri);
+        if (!string.IsNullOrEmpty(currentUrl) && !currentUrl.StartsWith("movie", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("");
+        }
+        else if (currentUrl.StartsWith("movie", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("");
+        }
+    }
+    
+    private void ToggleWatchLater()
+    {
+        SearchFilter.ToggleWatchLaterOnly();
         var currentUrl = Nav.ToBaseRelativePath(Nav.Uri);
         if (!string.IsNullOrEmpty(currentUrl) && !currentUrl.StartsWith("movie", StringComparison.OrdinalIgnoreCase))
         {

@@ -17,6 +17,7 @@ namespace EchidnaJav.Core.Domain.DTOs
         public SortMoviesBy SortBy { get; set; } = SortMoviesBy.Title;
         public bool MissingImageOnly { get; set; }
         public bool FavoritesOnly { get; set; }
+        public bool WatchLaterOnly { get; set; }
         public int Skip { get; set; }
         public int Take { get; set; } = 50;
     }

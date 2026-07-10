@@ -9,6 +9,7 @@ namespace EchidnaJav.Core.Domain.States
         public int TotalDatabaseCount { get; private set; }
         public SortActressesBy CurrentActressSort { get; private set; } = SortActressesBy.MovieCount;
         public bool FavoritesOnly { get; private set; }
+        public bool WatchLaterOnly { get; private set; }
         public int FilterVersion { get; private set; }
         public event Action? OnSearchChanged;
         public event Action? OnMetadataChanged;
@@ -16,6 +17,15 @@ namespace EchidnaJav.Core.Domain.States
         public void ToggleFavoritesOnly()
         {
             FavoritesOnly = !FavoritesOnly;
+            if (FavoritesOnly) WatchLaterOnly = false;
+            FilterVersion++;
+            OnSearchChanged?.Invoke();
+        }
+        
+        public void ToggleWatchLaterOnly()
+        {
+            WatchLaterOnly = !WatchLaterOnly;
+            if (WatchLaterOnly) FavoritesOnly = false;
             FilterVersion++;
             OnSearchChanged?.Invoke();
         }

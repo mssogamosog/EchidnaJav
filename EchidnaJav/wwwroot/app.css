@@ -648,3 +648,39 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     box-shadow: none !important;
     border: none !important;
 }
+
+/* Watch Later Indicator (matches favorite but shifted left) */
+.watch-later-indicator {
+    position: absolute;
+    bottom: 8px;
+    right: 36px;
+    z-index: 10;
+    --bs-btn-padding-x: 0;
+    --bs-btn-padding-y: 0;
+    color: var(--primary);
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: transparent;
+    transition: transform 0.2s ease, color 0.3s ease, opacity 0.3s ease, filter 0.3s ease;
+}
+.watch-later-indicator:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+.watch-later-indicator.glow-active {
+    color: var(--primary);
+    opacity: 1;
+    filter: 
+        drop-shadow(0 0 4px var(--primary)) 
+        drop-shadow(0 0 12px var(--focus));
+}
+.watch-later-indicator:focus,
+.watch-later-indicator:active,
+.watch-later-indicator:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}

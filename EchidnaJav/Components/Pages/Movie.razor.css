@@ -1,4 +1,4 @@
-﻿/* ================= CONTAINER & GRID AREAS ================= */
+/* ================= CONTAINER & GRID AREAS ================= */
 .movie-page-container {
     display: grid;
     grid-template-columns: minmax(0, 900px) 320px;
@@ -418,4 +418,13 @@
     }
 
     .poster-container { display: none; }
+}
+/* Custom positions for the large hero icons */
+.movie-hero-action.favorite-indicator {
+    bottom: 16px;
+    right: 16px;
+}
+.movie-hero-action.watch-later-indicator {
+    bottom: 16px;
+    right: 56px; 
 }

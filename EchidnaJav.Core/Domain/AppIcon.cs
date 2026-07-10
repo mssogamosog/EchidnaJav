@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -15,6 +15,8 @@ namespace EchidnaJav.Core.Domain
         PreviousMovie,
         NextMovie,
         HeartSolid,
-        HeartOutline
+        HeartOutline,
+        ClockSolid,
+        ClockOutline
     }
 }

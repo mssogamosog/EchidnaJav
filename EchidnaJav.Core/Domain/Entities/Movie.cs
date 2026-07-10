@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace EchidnaJav.Core.Domain.Entities
 {
@@ -23,6 +23,7 @@ namespace EchidnaJav.Core.Domain.Entities
         public string? PrimaryImagePath { get; set; }
         public bool? IsFavorite { get; set; } = false;
         public bool? IsWatched { get; set; } = false;
+        public bool? IsWatchLater { get; set; } = false;
         public List<MovieActress> MovieActresses { get; set; } = new List<MovieActress>();
         public List<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
         public List<FileEntry> Files { get; set; } = new List<FileEntry>();

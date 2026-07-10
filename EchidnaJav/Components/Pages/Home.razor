@@ -317,6 +317,7 @@
                 SearchText = cleanSearchText,
                 MissingImageOnly = wantsNoCover,
                 FavoritesOnly = string.IsNullOrEmpty(_appliedActress) ? SearchFilter.FavoritesOnly : false,
+                WatchLaterOnly = string.IsNullOrEmpty(_appliedActress) ? SearchFilter.WatchLaterOnly : false,
                 Skip = Movies.Count,
                 Take = dynamicPageSize,
                 SortBy = SearchFilter.CurrentSort,

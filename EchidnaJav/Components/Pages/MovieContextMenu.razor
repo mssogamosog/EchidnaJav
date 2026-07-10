@@ -1,4 +1,4 @@
-﻿@using EchidnaJav.Core.Domain.DTOs
+@using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Infrastructure.Interfaces
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
@@ -34,6 +34,14 @@
                 </li>
                 <li class="menu-item" @onclick="RescanFilesAsync">
                     <span class="menu-icon">🔄</span> Rescan files
+                </li>
+                
+                <li class="menu-separator"></li>
+                <li class="menu-item" @onclick="ToggleFavoriteAsync">
+                    <span class="menu-icon">❤️</span> @(SelectedMovies.Count > 1 ? $"Toggle Favorite for {SelectedMovies.Count} movies" : "Toggle Favorite")
+                </li>
+                <li class="menu-item" @onclick="ToggleWatchLaterAsync">
+                    <span class="menu-icon">🕒</span> @(SelectedMovies.Count > 1 ? $"Toggle Watch Later for {SelectedMovies.Count} movies" : "Toggle Watch Later")
                 </li>
 
                 @if (SelectedMovies.Count == 1)
@@ -254,6 +262,41 @@
             await OnMoviesUpdated.InvokeAsync();
         }
     }
+    
+    private async Task ToggleFavoriteAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+        bool anyUpdates = false;
+        foreach (var movie in SelectedMovies)
+        {
+            try
+            {
+                var result = await Repo.ToggleMovieFavoriteAsync(movie.Id);
+                if (result != null) anyUpdates = true;
+            }
+            catch { /* ignore */ }
+        }
+        if (anyUpdates) await OnMoviesUpdated.InvokeAsync();
+    }
+    
+    private async Task ToggleWatchLaterAsync()
+    {
+        if (!SelectedMovies.Any()) return;
+        await Close();
+        bool anyUpdates = false;
+        foreach (var movie in SelectedMovies)
+        {
+            try
+            {
+                var result = await Repo.ToggleMovieWatchLaterAsync(movie.Id);
+                if (result != null) anyUpdates = true;
+            }
+            catch { /* ignore */ }
+        }
+        if (anyUpdates) await OnMoviesUpdated.InvokeAsync();
+    }
+
     private async Task DeleteMovieAsync()
     {
         if (!SelectedMovies.Any()) return;

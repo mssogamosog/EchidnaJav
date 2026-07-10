@@ -1,4 +1,4 @@
-﻿namespace EchidnaJav.Core.Domain.DTOs
+namespace EchidnaJav.Core.Domain.DTOs
 {
     public class MovieDetailsDto
     {
@@ -12,6 +12,7 @@
         public string? Plot { get; set; }
         public bool? IsFavorite { get; set; } = false;
         public bool? IsWatched { get; set; } = false;
+        public bool? IsWatchLater { get; set; } = false;
         public List<string> Genres { get; set; } = new();
         public List<FileDto> Files { get; set; } = new();
         public List<MovieActorDto> Cast { get; set; } = new();

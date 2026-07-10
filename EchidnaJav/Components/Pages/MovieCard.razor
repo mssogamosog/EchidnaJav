@@ -1,4 +1,4 @@
-﻿@using EchidnaJav.Components.Common
+@using EchidnaJav.Components.Common
 @using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
@@ -32,12 +32,16 @@
             <div class="cover-placeholder"></div>
         }
 
-        <button class="btn  favorite-indicator @(Movie.IsFavorite == true ? "glow-active" : "")"
+        <button class="btn p-0 border-0 watch-later-indicator @(Movie.IsWatchLater == true ? "glow-active" : "")"
+                @onclick="ToggleWatchLaterAsync"
+                @onclick:stopPropagation="true">
+            <Icon Name="@(Movie.IsWatchLater == true ? AppIcon.ClockSolid : AppIcon.ClockOutline)" Size="22" />
+        </button>
+
+        <button class="btn p-0 border-0 favorite-indicator @(Movie.IsFavorite == true ? "glow-active" : "")"
                 @onclick="ToggleFavoriteAsync"
                 @onclick:stopPropagation="true">
-
             <Icon Name="@(Movie.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="22" />
-
         </button>
     </div>
 
@@ -109,6 +113,20 @@
         catch
         {
             Movie.IsFavorite = !Movie.IsFavorite;
+        }
+    }
+    
+    private async Task ToggleWatchLaterAsync()
+    {
+        Movie.IsWatchLater = !(Movie.IsWatchLater ?? false);
+
+        try
+        {
+            await MoviesRepo.ToggleMovieWatchLaterAsync(Movie.Id);
+        }
+        catch
+        {
+            Movie.IsWatchLater = !Movie.IsWatchLater;
         }
     }
     protected override void OnParametersSet()

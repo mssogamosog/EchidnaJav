@@ -1,4 +1,4 @@
-﻿namespace EchidnaJav.Core.Domain.DTOs
+namespace EchidnaJav.Core.Domain.DTOs
 {
     public class MovieCardDto
     {
@@ -6,6 +6,6 @@
         public string Title { get; set; }
         public string? ImagePath { get; set; }
         public bool? IsFavorite { get; set; }
-
+        public bool? IsWatchLater { get; set; }
     }
 }

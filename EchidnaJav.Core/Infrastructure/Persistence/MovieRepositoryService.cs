@@ -25,6 +25,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<List<string>> SearchGenreNamesAsync(string query);
         Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto);
         Task<bool?> ToggleMovieFavoriteAsync(string movieId);
+        Task<bool?> ToggleMovieWatchLaterAsync(string movieId);
     }
 
     public class MovieRepositoryService : IMovieRepositoryService
@@ -111,6 +112,11 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 query = query.Where(m => m.IsFavorite == true);
             }
 
+            if (queryParams.WatchLaterOnly)
+            {
+                query = query.Where(m => m.IsWatchLater == true);
+            }
+
             return query;
         }
 
@@ -140,7 +146,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                     Id = m.Id,
                     Title = m.Title,
                     ImagePath = m.PrimaryImagePath,
-                    IsFavorite = m.IsFavorite
+                    IsFavorite = m.IsFavorite,
+                    IsWatchLater = m.IsWatchLater
                 })
                 .ToListAsync();
         }
@@ -188,7 +195,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                         FilePath = f.FilePath
                     }).ToList(),
                     IsFavorite = m.IsFavorite,
-                    IsWatched = m.IsWatched
+                    IsWatched = m.IsWatched,
+                    IsWatchLater = m.IsWatchLater
                 })
                 .FirstOrDefaultAsync();
 
@@ -434,6 +442,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             movie.Plot = dto.Plot;
             movie.IsFavorite = dto.IsFavorite;
             movie.IsWatched = dto.IsWatched;
+            movie.IsWatchLater = dto.IsWatchLater;
 
             if (dto.Premiered.HasValue)
             {
@@ -695,6 +704,22 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
                 await db.SaveChangesAsync();
                 return movie.IsFavorite;
+            }
+
+            return false;
+        }
+        
+        public async Task<bool?> ToggleMovieWatchLaterAsync(string movieId)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            var movie = await db.Movies.FindAsync(movieId);
+            if (movie != null)
+            {
+                movie.IsWatchLater = !(movie.IsWatchLater ?? false);
+
+                await db.SaveChangesAsync();
+                return movie.IsWatchLater;
             }
 
             return false;

@@ -1,4 +1,4 @@
-﻿@page "/movie/{Id}"
+@page "/movie/{Id}"
 @using EchidnaJav.Components.Common
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
@@ -41,7 +41,12 @@
         }
         else
         {
-            <button class="btn btn-link p-0 border-0 favorite-indicator @(movie?.IsFavorite == true ? "glow-active" : "")"
+            <button class="btn btn-link p-0 border-0 watch-later-indicator movie-hero-action @(movie?.IsWatchLater == true ? "glow-active" : "")"
+                    @onclick="ToggleWatchLaterAsync"
+                    @onclick:stopPropagation="true">
+                <Icon Name="@(movie?.IsWatchLater == true ? AppIcon.ClockSolid : AppIcon.ClockOutline)" Size="32" />
+            </button>
+            <button class="btn btn-link p-0 border-0 favorite-indicator movie-hero-action @(movie?.IsFavorite == true ? "glow-active" : "")"
                     @onclick="ToggleFavoriteAsync"
                     @onclick:stopPropagation="true">
                 <Icon Name="@(movie?.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="32" />
@@ -72,6 +77,11 @@
 
             <div class="poster-container">
                 <img src="@posterImage" class="poster-img" />
+                <button class="btn btn-link p-0 border-0 watch-later-indicator @(movie?.IsWatchLater == true ? "glow-active" : "")"
+                        @onclick="ToggleWatchLaterAsync"
+                        @onclick:stopPropagation="true">
+                    <Icon Name="@(movie?.IsWatchLater == true ? AppIcon.ClockSolid : AppIcon.ClockOutline)" Size="24" />
+                </button>
                 <button class="btn btn-link p-0 border-0 favorite-indicator @(movie?.IsFavorite == true ? "glow-active" : "")"
                         @onclick="ToggleFavoriteAsync"
                         @onclick:stopPropagation="true">
@@ -624,6 +634,20 @@
         catch
         {
             movie.IsFavorite = !movie.IsFavorite;
+        }
+    }
+    
+    private async Task ToggleWatchLaterAsync()
+    {
+        movie.IsWatchLater = !(movie.IsWatchLater ?? false);
+
+        try
+        {
+            await MoviesRepo.ToggleMovieWatchLaterAsync(movie.Id);
+        }
+        catch
+        {
+            movie.IsWatchLater = !movie.IsWatchLater;
         }
     }
     public void Dispose()
