@@ -1,4 +1,4 @@
-﻿using EchidnaJav.Core.Domain.Constants;
+using EchidnaJav.Core.Domain.Constants;
 using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Interfaces;
@@ -104,6 +104,11 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
             if (queryParams.MissingImageOnly)
             {
                 query = query.Where(m => string.IsNullOrEmpty(m.PrimaryImagePath));
+            }
+
+            if (queryParams.FavoritesOnly)
+            {
+                query = query.Where(m => m.IsFavorite == true);
             }
 
             return query;
@@ -502,7 +507,6 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 .ToList();
 
             string folderName = new DirectoryInfo(directoryPath).Name;
-            string normalizedId = movie.NormalizedId ?? movieId.Replace("-", "");
 
             bool isDedicatedFolder = _movieIdService.MovieIDEquals(movie.Id, folderName);
 

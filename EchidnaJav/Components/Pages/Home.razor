@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @using EchidnaJav.Core.Domain.DTOs
 @using EchidnaJav.Core.Domain.States
 @using EchidnaJav.Core.Infrastructure.Persistence
@@ -128,6 +128,12 @@
         var cache = NavCache.GetCache(CurrentPageKey);
         if (cache.Movies.Any())
         {
+            if (cache.FilterVersion != SearchFilter.FilterVersion)
+            {
+                NavCache.ResetCache(CurrentPageKey);
+                return;
+            }
+
             Movies = new List<MovieCardDto>(cache.Movies);
             hasMore = cache.HasMore;
             SearchFilter.SetTotalCount(cache.TotalCount);
@@ -310,6 +316,7 @@
             {
                 SearchText = cleanSearchText,
                 MissingImageOnly = wantsNoCover,
+                FavoritesOnly = string.IsNullOrEmpty(_appliedActress) ? SearchFilter.FavoritesOnly : false,
                 Skip = Movies.Count,
                 Take = dynamicPageSize,
                 SortBy = SearchFilter.CurrentSort,
@@ -337,6 +344,7 @@
                 var cache = NavCache.GetCache(CurrentPageKey);
                 cache.Movies = new List<MovieCardDto>(Movies);
                 cache.HasMore = hasMore;
+                cache.FilterVersion = SearchFilter.FilterVersion;
             }
             else
             {

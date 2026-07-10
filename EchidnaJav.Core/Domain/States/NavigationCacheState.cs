@@ -1,4 +1,4 @@
-﻿using EchidnaJav.Core.Domain.DTOs;
+using EchidnaJav.Core.Domain.DTOs;
 
 namespace EchidnaJav.Core.Domain.States
 {
@@ -9,6 +9,7 @@ namespace EchidnaJav.Core.Domain.States
         public bool HasMore { get; set; } = true;
         public double ScrollPosition { get; set; }
         public string? ContextKey { get; set; } // e.g., the specific Actress Name currently being viewed
+        public int FilterVersion { get; set; }
     }
 
     public class NavigationCacheState

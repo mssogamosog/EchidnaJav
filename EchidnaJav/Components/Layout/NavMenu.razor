@@ -1,4 +1,4 @@
-﻿@using CommunityToolkit.Maui.Storage
+@using CommunityToolkit.Maui.Storage
 @using EchidnaJav.Components.Common
 @using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Domain.DTOs
@@ -6,6 +6,8 @@
 @using EchidnaJav.Core.Infrastructure.Services
 @inject IImportService ImportService
 @inject ImportState ImportState
+@inject SearchFilterState SearchFilter
+@inject NavigationManager Nav
 @implements IDisposable
 
 
@@ -25,6 +27,14 @@
     </div>
 
     <div class="nav-item">
+        <button class="nav-link @(SearchFilter.FavoritesOnly ? "active" : "")"
+                @onclick="ToggleFavorites">
+            <Icon Name="@(SearchFilter.FavoritesOnly ? AppIcon.HeartSolid : AppIcon.HeartOutline)" CssClass="menu-icon" />
+            <span class="nav-text">Favorites</span>
+        </button>
+    </div>
+
+    <div class="nav-item">
         <button class="nav-link"
                 @onclick="PickFolder"
                 disabled="@ImportState.IsRunning">
@@ -39,16 +49,32 @@
     {
         // We still subscribe here solely to update the "Import Folder" button text/disabled state
         ImportState.OnChange += SafeStateHasChanged;
+        SearchFilter.OnSearchChanged += SafeStateHasChanged;
     }
 
     public void Dispose()
     {
         ImportState.OnChange -= SafeStateHasChanged;
+        SearchFilter.OnSearchChanged -= SafeStateHasChanged;
     }
 
     private void SafeStateHasChanged()
     {
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleFavorites()
+    {
+        SearchFilter.ToggleFavoritesOnly();
+        var currentUrl = Nav.ToBaseRelativePath(Nav.Uri);
+        if (!string.IsNullOrEmpty(currentUrl) && !currentUrl.StartsWith("movie", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("");
+        }
+        else if (currentUrl.StartsWith("movie", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("");
+        }
     }
 
     private async Task PickFolder()

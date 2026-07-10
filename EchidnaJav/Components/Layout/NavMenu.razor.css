@@ -73,7 +73,8 @@ button.nav-link:disabled {
 }
 
 /* Active State - Only changes the text color */
-.nav-item ::deep a.active .nav-text {
+.nav-item ::deep a.active .nav-text,
+.nav-item ::deep button.active .nav-text {
     color: var(--primary);
     font-weight: bold;
 }

@@ -1,4 +1,4 @@
-﻿using EchidnaJav.Core.Domain.DTOs;
+using EchidnaJav.Core.Domain.DTOs;
 
 namespace EchidnaJav.Core.Domain.States
 {
@@ -8,8 +8,17 @@ namespace EchidnaJav.Core.Domain.States
         public SortMoviesBy CurrentSort { get; private set; } = SortMoviesBy.RecentlyAdded;
         public int TotalDatabaseCount { get; private set; }
         public SortActressesBy CurrentActressSort { get; private set; } = SortActressesBy.MovieCount;
+        public bool FavoritesOnly { get; private set; }
+        public int FilterVersion { get; private set; }
         public event Action? OnSearchChanged;
         public event Action? OnMetadataChanged;
+
+        public void ToggleFavoritesOnly()
+        {
+            FavoritesOnly = !FavoritesOnly;
+            FilterVersion++;
+            OnSearchChanged?.Invoke();
+        }
 
         public void SetTotalCount(int count)
         {
@@ -25,6 +34,7 @@ namespace EchidnaJav.Core.Domain.States
             if (SearchText != text)
             {
                 SearchText = text;
+                FilterVersion++;
                 OnSearchChanged?.Invoke();
             }
         }
@@ -33,6 +43,7 @@ namespace EchidnaJav.Core.Domain.States
             if (CurrentActressSort != sort)
             {
                 CurrentActressSort = sort;
+                FilterVersion++;
                 OnSearchChanged?.Invoke();
             }
         }
@@ -41,6 +52,7 @@ namespace EchidnaJav.Core.Domain.States
             if (CurrentSort != sort)
             {
                 CurrentSort = sort;
+                FilterVersion++;
                 OnSearchChanged?.Invoke();
             }
         }
