@@ -17,6 +17,16 @@ namespace EchidnaJav.Core.Domain
         HeartSolid,
         HeartOutline,
         ClockSolid,
-        ClockOutline
+        ClockOutline,
+        Play,
+        FolderOpen,
+        Sync,
+        Image,
+        Link,
+        FileText,
+        Trash,
+        Sun,
+        Moon,
+        Film
     }
 }

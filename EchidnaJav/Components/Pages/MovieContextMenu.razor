@@ -2,6 +2,8 @@
 @using EchidnaJav.Core.Infrastructure.Interfaces
 @using EchidnaJav.Core.Infrastructure.Persistence
 @using EchidnaJav.Core.Infrastructure.Services
+@using EchidnaJav.Components.Common
+@using EchidnaJav.Core.Domain
 @inject IPlaybackService PlaybackService
 @inject IFileUtilityService FileUtil
 @inject IMovieRepositoryService Repo
@@ -23,45 +25,45 @@
 
             <ul class="menu-list">
                 <li class="menu-item" @onclick="PlayMovieAsync">
-                    <span class="menu-icon">▶</span> @(SelectedMovies.Count > 1 ? $"Play {SelectedMovies.Count} movies" : "Play movie")
+                    <span class="menu-icon"><Icon Name="AppIcon.Play" /></span> @(SelectedMovies.Count > 1 ? $"Play {SelectedMovies.Count} movies" : "Play movie")
                 </li>
                 <li class="menu-item" @onclick="OpenFolderAsync">
-                    <span class="menu-icon">📁</span> @(SelectedMovies.Count > 1 ? $"Open {SelectedMovies.Count} folders" : "Open folder")
+                    <span class="menu-icon"><Icon Name="AppIcon.Folder" /></span> @(SelectedMovies.Count > 1 ? $"Open {SelectedMovies.Count} folders" : "Open folder")
                 </li>
                 <li class="menu-separator"></li>
                 <li class="menu-item" @onclick="MoveToFolderAsync">
-                    <span class="menu-icon">📂</span> @(SelectedMovies.Count > 1 ? $"Move {SelectedMovies.Count} movies..." : "Move to folder...")
+                    <span class="menu-icon"><Icon Name="AppIcon.FolderOpen" /></span> @(SelectedMovies.Count > 1 ? $"Move {SelectedMovies.Count} movies..." : "Move to folder...")
                 </li>
                 <li class="menu-item" @onclick="RescanFilesAsync">
-                    <span class="menu-icon">🔄</span> Rescan files
+                    <span class="menu-icon"><Icon Name="AppIcon.Sync" /></span> Rescan files
                 </li>
                 
                 <li class="menu-separator"></li>
                 <li class="menu-item" @onclick="ToggleFavoriteAsync">
-                    <span class="menu-icon">❤️</span> @(SelectedMovies.Count > 1 ? $"Toggle Favorite for {SelectedMovies.Count} movies" : "Toggle Favorite")
+                    <span class="menu-icon"><Icon Name="AppIcon.HeartSolid" /></span> @(SelectedMovies.Count > 1 ? $"Toggle Favorite for {SelectedMovies.Count} movies" : "Toggle Favorite")
                 </li>
                 <li class="menu-item" @onclick="ToggleWatchLaterAsync">
-                    <span class="menu-icon">🕒</span> @(SelectedMovies.Count > 1 ? $"Toggle Watch Later for {SelectedMovies.Count} movies" : "Toggle Watch Later")
+                    <span class="menu-icon"><Icon Name="AppIcon.ClockSolid" /></span> @(SelectedMovies.Count > 1 ? $"Toggle Watch Later for {SelectedMovies.Count} movies" : "Toggle Watch Later")
                 </li>
 
                 @if (SelectedMovies.Count == 1)
                 {
                     <li class="menu-separator"></li>
                     <li class="menu-item" @onclick="ImportCoverAsync">
-                        <span class="menu-icon">🖼️</span> Import cover image
+                        <span class="menu-icon"><Icon Name="AppIcon.Image" /></span> Import cover image
                     </li>
                     <li class="menu-item" @onclick="OpenManualScrapeDialog">
-                        <span class="menu-icon">🔗</span> Scrape from Link
+                        <span class="menu-icon"><Icon Name="AppIcon.Link" /></span> Scrape from Link
                     </li>
                 }
 
                 <li class="menu-separator"></li>
                 <li class="menu-item" @onclick="RegenerateMetadataAsync">
-                    <span class="menu-icon">📄</span> Regenerate metadata
+                    <span class="menu-icon"><Icon Name="AppIcon.FileText" /></span> Regenerate metadata
                 </li>
                 <li class="menu-separator"></li>
                 <li class="menu-item" @onclick="DeleteMovieAsync" style="color: #ff4d4d;">
-                    <span class="menu-icon">🗑️</span> @(SelectedMovies.Count > 1 ? $"Delete {SelectedMovies.Count} movies" : "Delete movie")
+                    <span class="menu-icon"><Icon Name="AppIcon.Trash" /></span> @(SelectedMovies.Count > 1 ? $"Delete {SelectedMovies.Count} movies" : "Delete movie")
                 </li>
             </ul>
         </div>

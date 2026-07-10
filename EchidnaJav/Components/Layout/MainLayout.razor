@@ -1,4 +1,4 @@
-﻿@using EchidnaJav.Components.Common
+@using EchidnaJav.Components.Common
 @using EchidnaJav.Components.Pages
 @using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Domain.DTOs
@@ -30,11 +30,11 @@
         <button class="nav-btn" @onclick="ToggleTheme" title="@(isDarkMode ? "Light Mode" : "Dark Mode")" style="font-size: 1.1rem;">
             @if (isDarkMode)
             {
-                <span>☀️</span>
+                <Icon Name="AppIcon.Sun" />
             }
             else
             {
-                <span>🌙</span>
+                <Icon Name="AppIcon.Moon" />
             }
         </button>
     </header>

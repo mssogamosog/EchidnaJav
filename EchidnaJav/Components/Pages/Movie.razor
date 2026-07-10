@@ -79,9 +79,9 @@
         @foreach (var file in movie?.Files ?? Enumerable.Empty<FileDto>())
         {
             <div class="file-item">
-                <span class="file-name" title="@file.FileName">🎬 @file.FileName</span>
+                <span class="file-name" title="@file.FileName"><Icon Name="AppIcon.Film" /> @file.FileName</span>
                 <button class="file-play-btn" @onclick="() => PlaybackService.PlayFile(file.FilePath)">
-                    ▶ Play
+                    <Icon Name="AppIcon.Play" /> Play
                 </button>
             </div>
         }
