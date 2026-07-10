@@ -1,9 +1,14 @@
-﻿namespace EchidnaJav.Core.Domain.DTOs
+namespace EchidnaJav.Core.Domain.DTOs
 {
     public class ActressImageDto
     {
         public string Filepath { get; set; } = string.Empty;
         public int Index { get; set; }
+    }
+    public class PendingImageDto
+    {
+        public byte[] Bytes { get; set; } = Array.Empty<byte>();
+        public string Extension { get; set; } = string.Empty;
     }
     public class ActressDetailsDto
     {

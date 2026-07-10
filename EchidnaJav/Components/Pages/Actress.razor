@@ -1,4 +1,4 @@
-﻿@page "/actress/{Name}"
+@page "/actress/{Name}"
 @using EchidnaJav.Components.Common
 @using EchidnaJav.Core.Domain
 @using EchidnaJav.Core.Domain.DTOs
@@ -42,28 +42,28 @@
             </div>
 
             <div class="poster-container" id="cover-drop-zone">
-                @if (!string.IsNullOrEmpty(actressImage) || _previewImageUrl != null)
+                @if (!string.IsNullOrEmpty(actressImage))
                 {
                     <div class="carousel-wrapper">
-                        @if (actress.Images.Count > 1 && !isEditing)
+                        @if (actress.Images.Count > 1)
                         {
                             <button class="carousel-btn prev" @onclick="() => RotateImage(-1)">❮</button>
                         }
 
-                        <img src="@(_previewImageUrl ?? actressImage)" class="poster-img" alt="@actress.Name" />
+                        <img src="@actressImage" class="poster-img" alt="@actress.Name" />
                         <button class="btn btn-link p-0 border-0 favorite-indicator @(actress?.IsFavorite == true ? "glow-active" : "")"
                                 @onclick="ToggleFavoriteAsync"
                                 @onclick:stopPropagation="true">
                             <Icon Name="@(actress?.IsFavorite == true ? AppIcon.HeartSolid : AppIcon.HeartOutline)" Size="32" />
                         </button>
-                        @if (actress.Images.Count > 1 && !isEditing)
+                        @if (actress.Images.Count > 1)
                         {
 
                             <button class="carousel-btn next" @onclick="() => RotateImage(1)">❯</button>
                             <div class="image-counter">@(currentIndex + 1) / @actress.Images.Count</div>
                         }
 
-                        @if (isEditing && _previewImageUrl == null && actress.Images.Any())
+                        @if (isEditing && actress.Images.Any())
                         {
                             <button class="btn btn-danger delete-cover-btn" @onclick="DeleteCurrentImage">🗑 Delete</button>
                         }
@@ -76,9 +76,21 @@
 
                 @if (isEditing)
                 {
-                    <div class="image-drop-overlay" @onclick="PickImageNative">
-                        <span>Drop new photo here (or click)</span>
+                    <div class="image-drop-area" @onclick="PickImageNative">
+                        <span>Drop new photo here (or click/paste)</span>
                     </div>
+                    @if (_pendingImages.Any())
+                    {
+                        <div class="pending-images-grid mt-3">
+                            @foreach (var pending in _pendingImages.ToList())
+                            {
+                                <div class="pending-image-item">
+                                    <img src="@pending.PreviewUrl" />
+                                    <button class="btn btn-sm btn-danger remove-pending-btn" @onclick="() => _pendingImages.Remove(pending)">X</button>
+                                </div>
+                            }
+                        </div>
+                    }
                 }
              
             </div>
@@ -182,9 +194,13 @@
     private ActressDetailsDto? actress;
     private string? actressImage;
     private bool isEditing = false;
-    private byte[]? _pendingImageBytes = null;
-    private string? _pendingImageExtension = null;
-    private string? _previewImageUrl = null;
+    private class PendingImageUI
+    {
+        public byte[] Bytes { get; set; } = Array.Empty<byte>();
+        public string Extension { get; set; } = string.Empty;
+        public string PreviewUrl { get; set; } = string.Empty;
+    }
+    private List<PendingImageUI> _pendingImages = new();
     private List<string> _imagesToDelete = new();
     private DotNetObjectReference<Actress>? _objRef;
 
@@ -234,13 +250,12 @@
         if (firstRender)
         {
             _objRef = DotNetObjectReference.Create(this);
-            NativeFileDragDropHelper.OnFileDropped += HandleNativeFileDrop;
+            await JS.InvokeVoidAsync("multipleImagesInterop.setup", _objRef, "cover-drop-zone");
         }
     }
 
     public void Dispose()
     {
-        NativeFileDragDropHelper.OnFileDropped -= HandleNativeFileDrop;
         _objRef?.Dispose();
     }
 
@@ -249,16 +264,14 @@
         if (isEditing)
         {
             // Cancelled: Wipe draft data and reload original
-            _pendingImageBytes = null;
-            _pendingImageExtension = null;
-            _previewImageUrl = null;
+            _pendingImages.Clear();
             _imagesToDelete.Clear();
             await OnParametersSetAsync(); // Re-fetch from DB
         }
         isEditing = !isEditing;
     }
 
-    private void DeleteCurrentImage()
+    private async Task DeleteCurrentImage()
     {
         if (actress != null && actress.Images.Any())
         {
@@ -266,9 +279,18 @@
             _imagesToDelete.Add(imageToDelete.Filepath); // Keep track of what to delete in the DB
             actress.Images.RemoveAt(currentIndex);
 
-            // Reset view
-            currentIndex = 0;
-            _ = LoadCurrentImage();
+            if (actress.Images.Any())
+            {
+                if (currentIndex >= actress.Images.Count)
+                {
+                    currentIndex = actress.Images.Count - 1;
+                }
+                await LoadCurrentImage();
+            }
+            else
+            {
+                actressImage = null;
+            }
         }
     }
 
@@ -276,23 +298,20 @@
     {
         if (actress == null) return;
 
-        // TODO: Pass pending images to your DTO if your repository supports it.
-        // actress.NewCoverImageBytes = _pendingImageBytes;
-        // actress.NewCoverImageExtension = _pendingImageExtension;
-        // actress.ImagesToDelete = _imagesToDelete;
+        var newImages = _pendingImages.Select(p => new PendingImageDto 
+        { 
+            Bytes = p.Bytes, 
+            Extension = p.Extension 
+        }).ToList();
 
-        // 🔥 Call your repo to save:
-        // bool success = await ActressRepo.UpdateActressDetailsAsync(actress);
+        bool success = await ActressRepo.UpdateActressDetailsAsync(actress, newImages, _imagesToDelete);
 
-        // if (success) {
-        _pendingImageBytes = null;
-        _pendingImageExtension = null;
-        _previewImageUrl = null;
-        _imagesToDelete.Clear();
-        isEditing = false;
-
-        await OnParametersSetAsync(); // Refresh fresh data
-                                      // }
+        if (success) {
+            _pendingImages.Clear();
+            _imagesToDelete.Clear();
+            isEditing = false;
+            await OnParametersSetAsync(); // Refresh fresh data
+        }
     }
 
     // --- Image Upload Logic ---
@@ -301,51 +320,48 @@
         try
         {
             var customFileType = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-        {
-            { DevicePlatform.WinUI, new[] { ".jpg", ".jpeg", ".png", ".webp" } },
-            { DevicePlatform.MacCatalyst, new[] { "public.image" } }
-        });
-
-            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new PickOptions
             {
-                PickerTitle = "Select a new Photo",
+                { DevicePlatform.WinUI, new[] { ".jpg", ".jpeg", ".png", ".webp" } },
+                { DevicePlatform.MacCatalyst, new[] { "public.image" } }
+            });
+
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickMultipleAsync(new PickOptions
+            {
+                PickerTitle = "Select new Photos",
                 FileTypes = customFileType
             });
 
-            if (result != null)
+            if (result != null && result.Any())
             {
-                using var stream = await result.OpenReadAsync();
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
+                foreach (var file in result)
+                {
+                    using var stream = await file.OpenReadAsync();
+                    using var ms = new MemoryStream();
+                    await stream.CopyToAsync(ms);
 
-                _pendingImageBytes = ms.ToArray();
-                _pendingImageExtension = Path.GetExtension(result.FileName);
+                    var bytes = ms.ToArray();
+                    var ext = Path.GetExtension(file.FileName);
+                    string mimeType = ext.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+                    string previewUrl = $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
 
-                string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
-                _previewImageUrl = $"data:{mimeType};base64,{Convert.ToBase64String(_pendingImageBytes)}";
-
+                    _pendingImages.Add(new PendingImageUI { Bytes = bytes, Extension = ext, PreviewUrl = previewUrl });
+                }
                 StateHasChanged();
             }
         }
         catch (Exception ex) { Console.WriteLine(ex.Message); }
     }
 
-    private async void HandleNativeFileDrop(string physicalFilePath)
+    [JSInvokable]
+    public async Task OnImageReceived(string base64, string extension)
     {
-        if (!isEditing || string.IsNullOrWhiteSpace(physicalFilePath)) return;
-
-        try
-        {
-            _pendingImageBytes = await System.IO.File.ReadAllBytesAsync(physicalFilePath);
-            _pendingImageExtension = System.IO.Path.GetExtension(physicalFilePath);
-
-            var base64 = Convert.ToBase64String(_pendingImageBytes);
-            string mimeType = _pendingImageExtension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
-            _previewImageUrl = $"data:{mimeType};base64,{base64}";
-
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex) { Console.WriteLine(ex.Message); }
+        if (!isEditing) return;
+        var bytes = Convert.FromBase64String(base64);
+        string mimeType = extension.ToLower().EndsWith("png") ? "image/png" : "image/jpeg";
+        string preview = $"data:{mimeType};base64,{base64}";
+        
+        _pendingImages.Add(new PendingImageUI { Bytes = bytes, Extension = extension, PreviewUrl = preview });
+        await InvokeAsync(StateHasChanged);
     }
     private DateTime? ActressDobProxy
     {

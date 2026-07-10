@@ -1,4 +1,4 @@
-﻿window.setCardWidth = function (value) {
+window.setCardWidth = function (value) {
     document.documentElement.style
         .setProperty('--card-width', value);
 };
@@ -199,6 +199,62 @@ window.imageInterop = {
             let extension = file.name ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg';
 
             // Send the raw base64 data to Blazor
+            dotNetHelper.invokeMethodAsync('OnImageReceived', base64, extension);
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+window.multipleImagesInterop = {
+    setup: function (dotNetHelper, elementId) {
+        const dropZone = document.getElementById(elementId);
+
+        window.addEventListener("dragenter", function (e) { e.preventDefault(); }, false);
+        window.addEventListener("dragover", function (e) { e.preventDefault(); }, false);
+        window.addEventListener("drop", function (e) { e.preventDefault(); }, false);
+
+        window.addEventListener('paste', function (e) {
+            let items = e.clipboardData.items;
+            let found = false;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf("image") !== -1) {
+                    e.preventDefault();
+                    let blob = items[i].getAsFile();
+                    multipleImagesInterop.readAndSend(blob, dotNetHelper);
+                    found = true;
+                }
+            }
+        });
+
+        if (dropZone) {
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'copy';
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    for(let i=0; i<e.dataTransfer.files.length; i++) {
+                        let file = e.dataTransfer.files[i];
+                        if (file.type.indexOf("image") !== -1) {
+                            multipleImagesInterop.readAndSend(file, dotNetHelper);
+                        }
+                    }
+                }
+            });
+        }
+    },
+    readAndSend: function (file, dotNetHelper) {
+        let reader = new FileReader();
+        reader.onload = function (e) {
+            let base64 = e.target.result.split(',')[1];
+            let extension = file.name ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg';
             dotNetHelper.invokeMethodAsync('OnImageReceived', base64, extension);
         };
         reader.readAsDataURL(file);

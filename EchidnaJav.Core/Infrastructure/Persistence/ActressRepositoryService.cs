@@ -1,4 +1,4 @@
-﻿using EchidnaJav.Core.Domain.DTOs;
+using EchidnaJav.Core.Domain.DTOs;
 using EchidnaJav.Core.Domain.Entities;
 using EchidnaJav.Core.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -15,19 +15,26 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<List<ActressDetailsDto>> GetAllActressesAsync(string? searchText, SortActressesBy sortBy);
         Task MergeActressesAsync(string targetName, List<string> sourceNames);
         Task<bool?> ToggleActressFavoriteAsync(int actressId);
+        Task<bool> UpdateActressDetailsAsync(ActressDetailsDto updatedActress, List<PendingImageDto> newImages, List<string> imagesToDelete);
     }
 
     public class ActressRepositoryService : IActressRepositoryService
     {
         private readonly IDbContextFactory<AppDbContext> _dbFactory;
         private readonly INfoGeneratorService _nfoGenerator;
+        private readonly IAppPaths _appPaths;
+        private readonly IImageService _imageService;
 
         public ActressRepositoryService(
             IDbContextFactory<AppDbContext> dbFactory,
-            INfoGeneratorService nfoGenerator)
+            INfoGeneratorService nfoGenerator,
+            IAppPaths appPaths,
+            IImageService imageService)
         {
             _dbFactory = dbFactory;
             _nfoGenerator = nfoGenerator;
+            _appPaths = appPaths;
+            _imageService = imageService;
         }
 
         public async Task SaveScrapedActressAsync(ActressData scrapedData)
@@ -496,6 +503,71 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
                 return actress.IsFavorite;
             }
             return false;
+        }
+        public async Task<bool> UpdateActressDetailsAsync(ActressDetailsDto updatedActress, List<PendingImageDto> newImages, List<string> imagesToDelete)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+            var actress = await db.Actresses
+                .Include(a => a.Images)
+                .FirstOrDefaultAsync(a => a.Id == updatedActress.Id);
+
+            if (actress == null) return false;
+
+            actress.Name = updatedActress.Name;
+            actress.JapaneseName = updatedActress.JapaneseName;
+            actress.DobYear = updatedActress.DobYear;
+            actress.DobMonth = updatedActress.DobMonth;
+            actress.DobDay = updatedActress.DobDay;
+            actress.Height = updatedActress.Height;
+            actress.Cup = updatedActress.Cup;
+            actress.Bust = updatedActress.Bust;
+            actress.Waist = updatedActress.Waist;
+            actress.Hips = updatedActress.Hips;
+            actress.BloodType = updatedActress.BloodType;
+
+            if (imagesToDelete != null && imagesToDelete.Any())
+            {
+                var imagesToRemove = actress.Images.Where(i => imagesToDelete.Contains(i.Filepath)).ToList();
+                foreach (var img in imagesToRemove)
+                {
+                    actress.Images.Remove(img);
+                    db.Entry(img).State = EntityState.Deleted;
+                }
+            }
+
+            if (newImages != null && newImages.Any())
+            {
+                string cacheFolder = Path.Combine(_appPaths.AppDataDirectory, "actress-cache");
+                if (!Directory.Exists(cacheFolder)) Directory.CreateDirectory(cacheFolder);
+
+                int nextIndex = actress.Images.Any() ? actress.Images.Max(i => i.Index) + 1 : 0;
+
+                foreach (var pendingImage in newImages)
+                {
+                    if (pendingImage.Bytes == null || pendingImage.Bytes.Length == 0) continue;
+
+                    string ext = string.IsNullOrWhiteSpace(pendingImage.Extension) ? ".jpg" : pendingImage.Extension;
+                    string targetPath = Path.Combine(cacheFolder, $"{Guid.NewGuid()}{ext}");
+
+                    await _imageService.SaveNewCoverImageAsync(targetPath, pendingImage.Bytes);
+
+                    actress.Images.Add(new ActressImage
+                    {
+                        Filepath = targetPath,
+                        Index = nextIndex++
+                    });
+                }
+            }
+
+            // Re-normalize indices
+            var sortedImages = actress.Images.OrderBy(i => i.Index).ToList();
+            for (int i = 0; i < sortedImages.Count; i++)
+            {
+                sortedImages[i].Index = i;
+            }
+
+            await db.SaveChangesAsync();
+            return true;
         }
         private string? GetTargetDirectory(Movie movie)
         {
