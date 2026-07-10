@@ -15,7 +15,7 @@
 .title-area { grid-area: title; }
 .media-header-area { grid-area: media; }
 .details-area { grid-area: details; min-width: 0; }
-.recommended-area { grid-area: recommended; }
+.recommended-wrapper { grid-area: recommended; position: relative; height: 100%; align-self: stretch; min-width: 0; }
 .files-area { grid-area: files; align-self: start; }
 
 /* ================= HEADER / MEDIA ================= */
@@ -237,6 +237,44 @@
     color: #111A1F;
 }
 
+/* ================= RECOMMENDED ================= */
+.recommended-area {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+}
+.recommended-area h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.recommendations-vertical-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    padding-right: 8px; /* space for scrollbar */
+    /* Let the list take the available height */
+    flex: 1;
+}
+.recommendations-vertical-list::-webkit-scrollbar {
+    width: 6px;
+}
+.recommendations-vertical-list::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 4px;
+}
+.recommendation-item {
+    width: 100%;
+}
+
 /* ================= POSTER ================= */
 .poster-img {
     width: 100%;
@@ -418,6 +456,25 @@
     }
 
     .poster-container { display: none; }
+
+    /* Fix recommendation area height on mobile and make it horizontally scrollable */
+    .recommended-wrapper {
+        height: auto;
+    }
+    .recommended-area {
+        position: relative;
+    }
+    .recommendations-vertical-list {
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 8px;
+        padding-right: 0;
+    }
+    .recommendation-item {
+        width: 260px;
+        flex-shrink: 0;
+    }
 }
 /* Custom positions for the large hero icons */
 .movie-hero-action.favorite-indicator {

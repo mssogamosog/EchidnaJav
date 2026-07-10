@@ -26,6 +26,7 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         Task<bool> UpdateMovieDetailsAsync(MovieDetailsDto dto);
         Task<bool?> ToggleMovieFavoriteAsync(string movieId);
         Task<bool?> ToggleMovieWatchLaterAsync(string movieId);
+        Task<List<MovieCardDto>> GetRecommendedMoviesAsync(string currentMovieId, int count = 10);
     }
 
     public class MovieRepositoryService : IMovieRepositoryService
@@ -724,6 +725,94 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
 
             return false;
         }
+
+        public async Task<List<MovieCardDto>> GetRecommendedMoviesAsync(string currentMovieId, int count = 10)
+        {
+            using var db = await _dbFactory.CreateDbContextAsync();
+
+            var currentMovie = await db.Movies
+                .AsNoTracking()
+                .Include(m => m.MovieActresses)
+                .Include(m => m.MovieGenres)
+                .FirstOrDefaultAsync(m => m.Id == currentMovieId);
+
+            if (currentMovie == null)
+                return new List<MovieCardDto>();
+
+            var actressIds = currentMovie.MovieActresses.Select(a => a.ActressId).ToList();
+            var genreIds = currentMovie.MovieGenres.Select(g => g.GenreId).ToList();
+
+            var recommendedMovies = new List<Movie>();
+            var usedIds = new HashSet<string> { currentMovieId };
+
+            // 1. Fetch by Actresses
+            if (actressIds.Any())
+            {
+                var byActress = await db.Movies
+                    .AsNoTracking()
+                    .Where(m => !usedIds.Contains(m.Id) && m.MovieActresses.Any(a => actressIds.Contains(a.ActressId)))
+                    .OrderBy(m => EF.Functions.Random())
+                    .Take(count / 2)
+                    .ToListAsync();
+
+                recommendedMovies.AddRange(byActress);
+                foreach (var m in byActress) usedIds.Add(m.Id);
+            }
+
+            // 2. Fetch by Genres
+            if (genreIds.Any())
+            {
+                int remainingForGenre = count - recommendedMovies.Count;
+                if (remainingForGenre > 0)
+                {
+                    var byGenre = await db.Movies
+                        .AsNoTracking()
+                        .Where(m => !usedIds.Contains(m.Id) && m.MovieGenres.Any(g => genreIds.Contains(g.GenreId)))
+                        .OrderBy(m => EF.Functions.Random())
+                        .Take(remainingForGenre > count / 2 ? count / 2 : remainingForGenre)
+                        .ToListAsync();
+
+                    recommendedMovies.AddRange(byGenre);
+                    foreach (var m in byGenre) usedIds.Add(m.Id);
+                }
+            }
+
+            // 3. Fill the rest
+            if (recommendedMovies.Count < count)
+            {
+                int remaining = count - recommendedMovies.Count;
+                var randomFill = await db.Movies
+                    .AsNoTracking()
+                    .Where(m => !usedIds.Contains(m.Id))
+                    .OrderBy(m => EF.Functions.Random())
+                    .Take(remaining)
+                    .ToListAsync();
+
+                recommendedMovies.AddRange(randomFill);
+            }
+
+            // Shuffle the final list to mix actress and genre recommendations
+            var rnd = new Random();
+            int n = recommendedMovies.Count;
+            while (n > 1)
+            {
+                n--;
+                int k = rnd.Next(n + 1);
+                var value = recommendedMovies[k];
+                recommendedMovies[k] = recommendedMovies[n];
+                recommendedMovies[n] = value;
+            }
+
+            return recommendedMovies.Select(m => new MovieCardDto
+            {
+                Id = m.Id,
+                Title = m.Title,
+                ImagePath = m.PrimaryImagePath,
+                IsFavorite = m.IsFavorite,
+                IsWatchLater = m.IsWatchLater
+            }).ToList();
+        }
+
         public async Task UpdateMoviePathsAsync(string movieId, List<string> newFilePaths)
         {
             using var db = _dbFactory.CreateDbContext();

@@ -54,9 +54,24 @@
         }
     </div>
 
-    <div class="recommended-area">
+    <div class="recommended-wrapper">
+        <div class="recommended-area">
         <h3>Recommended</h3>
-        <p>(Coming later)</p>
+        <div class="recommendations-vertical-list">
+            @if (recommendedMovies != null)
+            {
+                @foreach (var recMovie in recommendedMovies)
+                {
+                    <div class="recommendation-item">
+                        <MovieCard Movie="@recMovie"
+                                   UseFullImage="true"
+                                   OnMovieClicked="(e) => HandleRecommendationClick(recMovie)"
+                                   OnMovieRightClicked="(e) => HandleRecommendationRightClick(recMovie, e)" />
+                    </div>
+                }
+            }
+        </div>
+        </div>
     </div>
 
     <div class="files-area">
@@ -313,6 +328,9 @@
     private double contextMenuX = 0;
     private double contextMenuY = 0;
     private List<MovieCardDto> contextMenuMovies = new();
+    
+    // --- Recommendations State ---
+    private List<MovieCardDto> recommendedMovies = new();
 
     private class ScrollInfo
     {
@@ -340,6 +358,7 @@
         if (movie != null)
         {
             UI.SetFooterText(movie.Title);
+            recommendedMovies = await MoviesRepo.GetRecommendedMoviesAsync(Id);
             await LoadImages();
         }
     }
@@ -622,6 +641,19 @@
         {
             await FetchAndLoadMovieAsync();
         }
+    }
+
+    private void HandleRecommendationClick(MovieCardDto movie)
+    {
+        Nav.NavigateTo($"/movie/{Uri.EscapeDataString(movie.Id)}?push=true");
+    }
+
+    private void HandleRecommendationRightClick(MovieCardDto movie, MouseEventArgs e)
+    {
+        contextMenuMovies = new List<MovieCardDto> { movie };
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        showContextMenu = true;
     }
     private async Task ToggleFavoriteAsync()
     {

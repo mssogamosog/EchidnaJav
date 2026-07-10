@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 
 namespace EchidnaJav.Core.Infrastructure.Services;
@@ -49,15 +49,14 @@ public class NavigationStateService : IDisposable, INavigationStateService
 
         bool isArrivingAtMovie = e.Location.Contains("/movie/", StringComparison.OrdinalIgnoreCase);
         bool isLeavingMovie = _history.Count > 0 && _history[_currentIndex].Contains("/movie/", StringComparison.OrdinalIgnoreCase);
+        bool forcePush = e.Location.Contains("push=true", StringComparison.OrdinalIgnoreCase);
 
-        if (isArrivingAtMovie && isLeavingMovie)
+        if (isArrivingAtMovie && isLeavingMovie && !forcePush)
         {
-
             _history[_currentIndex] = e.Location;
         }
         else if (_history.Count == 0 || _history.Last() != e.Location)
         {
-
             _history.Add(e.Location);
             _currentIndex++;
         }
