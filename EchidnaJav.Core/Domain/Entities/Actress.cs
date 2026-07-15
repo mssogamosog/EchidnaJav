@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace EchidnaJav.Core.Domain.Entities
 {
@@ -24,6 +24,9 @@ namespace EchidnaJav.Core.Domain.Entities
         public double? UserRating { get; set; }
         public string? Notes { get; set; }
         public bool? IsFavorite { get; set; } = false;
+        
+        public DateTime? LastScanDate { get; set; }
+        public bool AutoImportEnabled { get; set; } = false;
 
         public List<ActressAltName> AltNames { get; set; } = new List<ActressAltName>();
         public List<ActressImage> Images { get; set; } = new List<ActressImage>();

@@ -1,4 +1,4 @@
-﻿using EchidnaJav.Core.Domain.Entities;
+using EchidnaJav.Core.Domain.Entities;
 
 namespace EchidnaJav.Core.Infrastructure.Persistence
 {
@@ -12,6 +12,8 @@ namespace EchidnaJav.Core.Infrastructure.Persistence
         public DbSet<FileEntry> Files { get; set; }
         public DbSet<MovieActress> MovieActresses { get; set; }
         public DbSet<MovieGenre> MovieGenres { get; set; }
+        public DbSet<PendingRelease> PendingReleases { get; set; }
+        public DbSet<ScanLog> ScanLogs { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
